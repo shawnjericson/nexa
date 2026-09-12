@@ -19,6 +19,8 @@ import {
   PagePagination,
   PageQuery,
   PostResponse,
+  ReactBody,
+  Reactions,
   UpdatePostBody,
 } from './schemas';
 
@@ -83,7 +85,7 @@ registry.registerPath({
   method: 'get',
   path: '/api/v1/posts/{id}',
   tags: ['Posts'],
-  summary: 'Post with its author',
+  summary: 'Post with its author and reactions',
   description: 'Posts of other organizations answer 404. Also served as GET /api/posts/{id}.',
   ...tenant,
   request: { headers: OrganizationHeader, params: IdParams },
@@ -121,6 +123,36 @@ registry.registerPath({
   request: { headers: OrganizationHeader, params: IdParams },
   responses: {
     200: { description: 'Deleted', content: jsonContent(successResponse(Deleted)) },
+    ...errorResponses(400, 401, 403, 404),
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/posts/{id}/reactions',
+  tags: ['Reactions'],
+  summary: 'React to a post (one reaction per person; reacting again replaces it)',
+  ...tenant,
+  request: {
+    headers: OrganizationHeader,
+    params: IdParams,
+    body: { content: jsonContent(ReactBody) },
+  },
+  responses: {
+    200: { description: 'Reactions of the post', content: jsonContent(successResponse(Reactions)) },
+    ...errorResponses(400, 401, 403, 404, 429),
+  },
+});
+
+registry.registerPath({
+  method: 'delete',
+  path: '/api/v1/posts/{id}/reactions',
+  tags: ['Reactions'],
+  summary: 'Remove your reaction (idempotent)',
+  ...tenant,
+  request: { headers: OrganizationHeader, params: IdParams },
+  responses: {
+    200: { description: 'Reactions of the post', content: jsonContent(successResponse(Reactions)) },
     ...errorResponses(400, 401, 403, 404),
   },
 });

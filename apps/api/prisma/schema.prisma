@@ -38,10 +38,13 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  refreshTokens RefreshToken[]
-  memberships   OrganizationMember[]
-  posts         Post[]
-  comments      Comment[]
+  refreshTokens       RefreshToken[]
+  memberships         OrganizationMember[]
+  posts               Post[]
+  comments            Comment[]
+  reactions           Reaction[]
+  invitationsSent     Invitation[]         @relation("InvitationsSent")
+  invitationsAccepted Invitation[]         @relation("InvitationsAccepted")
 
   @@map("users")
 }
@@ -85,9 +88,11 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  roles   Role[]
-  members OrganizationMember[]
-  posts   Post[]
+  roles       Role[]
+  members     OrganizationMember[]
+  invitations Invitation[]
+  departments Department[]
+  posts       Post[]
 
   @@map("organizations")
 }
@@ -106,9 +111,10 @@ model Role {
   organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   permissions  RolePermission[]
   members      OrganizationMember[]
+  invitations  Invitation[]
 
   @@unique([organizationId, key])
-  // Target of the composite FK that keeps a member's role inside the member's organization.
+  // Target of the composite FKs that keep a member's / invitation's role inside its organization.
   @@unique([id, organizationId])
   @@map("roles")
 }
@@ -144,14 +150,73 @@ model OrganizationMember {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id])
-  // Composite FK: the database itself rejects a role from another organization.
-  role         Role         @relation(fields: [roleId, organizationId], references: [id, organizationId])
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id])
+  // Composite FK: the database itself rejects a role from another organization. NO ACTION (checked
+  // at the end of the statement) lets an organization delete cascade through roles and members.
+  role         Role               @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  departments  DepartmentMember[]
 
   @@unique([organizationId, userId])
   @@index([userId])
   @@map("organization_members")
+}
+
+/// Invitation to join an organization. The token is stored only as a SHA-256 hash and works once,
+/// for the invited email address, until it expires.
+model Invitation {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String    @db.Citext
+  roleId         String    @map("role_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash") @db.Char(64)
+  invitedById    String    @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
+  acceptedById   String?   @map("accepted_by_id") @db.Uuid
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  invitedBy    User         @relation("InvitationsSent", fields: [invitedById], references: [id])
+  acceptedBy   User?        @relation("InvitationsAccepted", fields: [acceptedById], references: [id])
+
+  @@index([organizationId, email])
+  @@map("invitations")
+}
+
+model Department {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  slug           String   @db.Citext
+  description    String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      DepartmentMember[]
+
+  @@unique([organizationId, slug])
+  @@unique([id, organizationId])
+  @@map("departments")
+}
+
+/// A member's place in a department. Both composite foreign keys keep the row inside one
+/// organization, and leaving the organization removes it automatically.
+model DepartmentMember {
+  departmentId   String   @map("department_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  department Department         @relation(fields: [departmentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  member     OrganizationMember @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
+
+  @@id([departmentId, userId])
+  @@index([organizationId, userId])
+  @@map("department_members")
 }
 
 // ─── Social ────────────────────────────────────────────────────────────────
@@ -167,6 +232,14 @@ enum PostVisibility {
   ORGANIZATION
   DEPARTMENT
   CHANNEL
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  CELEBRATE
+  SAD
 }
 
 /// Tenant-owned: every query is scoped by organization_id. Deleting is a soft delete
@@ -186,8 +259,9 @@ model Post {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   author       User         @relation(fields: [authorId], references: [id])
   comments     Comment[]
+  reactions    Reaction[]
 
-  // Target of the composite FK that keeps a comment inside its post's organization.
+  // Target of the composite FKs that keep comments/reactions inside the post's organization.
   @@unique([id, organizationId])
   // Feed: newest first within an organization, keyset-paginated on (created_at, id).
   @@index([organizationId, createdAt(sort: Desc), id(sort: Desc)])
@@ -217,4 +291,23 @@ model Comment {
   @@index([parentId])
   @@index([authorId])
   @@map("comments")
+}
+
+/// One reaction per person and post (risk register 7.2); reacting again replaces the type.
+model Reaction {
+  id             String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  postId         String       @map("post_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  type           ReactionType
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  post Post @relation(fields: [postId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([postId, type])
+  @@index([userId])
+  @@map("reactions")
 }

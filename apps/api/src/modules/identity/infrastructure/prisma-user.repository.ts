@@ -1,4 +1,4 @@
-import type { PrismaClient } from '../../../generated/prisma/client';
+import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
 import {
   describeUniqueViolation,
   isUniqueViolation,
@@ -11,6 +11,15 @@ import type {
   UserSummary,
 } from '../domain/ports';
 import type { User } from '../domain/user';
+
+const SUMMARY_SELECT = {
+  id: true,
+  email: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+  status: true,
+} satisfies Prisma.UserSelect;
 
 function toIdentityConflict(err: unknown): unknown {
   if (!isUniqueViolation(err)) return err;
@@ -35,8 +44,12 @@ export class PrismaUserRepository implements UserRepository {
   findSummaries(ids: readonly string[]): Promise<UserSummary[]> {
     return this.prisma.user.findMany({
       where: { id: { in: [...new Set(ids)] } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+      select: SUMMARY_SELECT,
     });
+  }
+
+  findSummaryByEmail(email: string): Promise<UserSummary | null> {
+    return this.prisma.user.findUnique({ where: { email }, select: SUMMARY_SELECT });
   }
 
   async create(data: CreateUserData): Promise<User> {

@@ -85,6 +85,17 @@ export const UserIdParams = z.object({ id: z.uuid() });
 
 // ─── Responses ─────────────────────────────────────────────────────────────
 
+/** Shared with other modules through the Identity public contract. */
+export const UserReference = z
+  .object({
+    id: z.uuid(),
+    username: z.string(),
+    display_name: z.string(),
+    avatar_url: z.string().nullable(),
+    deactivated: z.boolean(),
+  })
+  .openapi('UserReference');
+
 export const UserProfile = z
   .object({
     id: z.uuid(),

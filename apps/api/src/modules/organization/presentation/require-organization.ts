@@ -13,11 +13,23 @@ const OrganizationId = z.uuid();
  * and role changes apply immediately even while an access token is still valid
  * (risk register 4.3 and 4.4). The organization_id used by handlers always comes from here,
  * never from the request body (spec section 15).
+ *
+ * - source "header": optional X-Organization-Id (social routes)
+ * - source "path":   the :organizationId route parameter (organization management routes)
  */
-export function createRequireOrganization(service: OrganizationService): RequestHandler {
+export function createRequireOrganization(
+  service: OrganizationService,
+  source: 'header' | 'path' = 'header',
+): RequestHandler {
   return async (req, _res, next) => {
     const { userId } = requireAuthContext(req);
-    const requested = req.get('x-organization-id')?.trim() || undefined;
+    const requested =
+      source === 'path'
+        ? (req.params as { organizationId?: string }).organizationId
+        : req.get('x-organization-id')?.trim() || undefined;
+    if (source === 'path' && !requested) {
+      throw new Error('Route is missing the :organizationId parameter');
+    }
     if (requested !== undefined && !OrganizationId.safeParse(requested).success) {
       throw OrganizationErrors.invalidOrganizationId();
     }

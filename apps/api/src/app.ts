@@ -40,6 +40,10 @@ export function createApp({ prisma, readinessChecks = {} }: AppDependencies): Ex
     authors: identity.userDirectory,
     guard: [identity.requireAuth, organization.requireOrganization],
   });
+  const organizationRouter = organization.createRouter({
+    requireAuth: identity.requireAuth,
+    users: identity.userDirectory,
+  });
 
   const app = express();
   app.set('trust proxy', env.TRUST_PROXY);
@@ -57,6 +61,7 @@ export function createApp({ prisma, readinessChecks = {} }: AppDependencies): Ex
   const v1 = express.Router();
   v1.use('/auth', identity.authRouter);
   v1.use('/users', identity.usersRouter);
+  v1.use(organizationRouter);
   v1.use(social.v1);
   app.use('/api/v1', v1);
 

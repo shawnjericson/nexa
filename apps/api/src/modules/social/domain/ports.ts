@@ -1,4 +1,11 @@
-import type { Comment, Post, PostType, PostVisibility } from './content';
+import type {
+  Comment,
+  Post,
+  PostType,
+  PostVisibility,
+  ReactionSummary,
+  ReactionType,
+} from './content';
 
 /** Keyset position: the (created_at, id) of the last row of the previous page. */
 export interface KeysetCursor {
@@ -64,4 +71,21 @@ export interface CommentRepository {
   ): Promise<{ items: Comment[]; total: number }>;
   /** Soft-deletes the comment together with its replies. Returns false when it was already gone. */
   softDeleteThread(organizationId: string, id: string, at: Date): Promise<boolean>;
+}
+
+export interface ReactionRepository {
+  /** One reaction per person and post: setting it again replaces the type. */
+  set(
+    organizationId: string,
+    postId: string,
+    userId: string,
+    type: ReactionType,
+  ): Promise<{ previous: ReactionType | null }>;
+  remove(organizationId: string, postId: string, userId: string): Promise<void>;
+  /** A summary for every requested post (empty when nobody reacted). */
+  summarize(
+    organizationId: string,
+    postIds: readonly string[],
+    viewerId: string,
+  ): Promise<Map<string, ReactionSummary>>;
 }

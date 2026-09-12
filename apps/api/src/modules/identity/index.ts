@@ -19,6 +19,8 @@ export type { AuthContext } from './domain/auth-context';
 export { USER_REGISTERED, type UserRegisteredEvent } from './domain/events';
 export type { ProfileVisibility, UserDirectory, UserSummary } from './domain/ports';
 export { requireAuthContext } from './presentation/require-auth';
+export { UserReference } from './presentation/schemas';
+export { toUserReference } from './presentation/user.dto';
 
 export type IdentityConfig = Pick<
   Env,
@@ -74,6 +76,7 @@ export function createIdentityModule(deps: {
         const summaries = await users.findSummaries(ids);
         return new Map(summaries.map((summary) => [summary.id, summary]));
       },
+      findByEmail: (email) => users.findSummaryByEmail(email),
     },
   };
 }

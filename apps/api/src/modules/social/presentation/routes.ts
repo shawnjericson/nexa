@@ -6,9 +6,16 @@ import { requireAuthContext, type UserDirectory } from '../../identity';
 import { organizationContext } from '../../organization';
 import type { CommentService } from '../application/comment.service';
 import type { PostService } from '../application/post.service';
-import type { Comment, Post } from '../domain/content';
+import type { ReactionService } from '../application/reaction.service';
+import { emptyReactionSummary, type Comment, type Post } from '../domain/content';
 import type { Actor } from '../domain/policies';
-import { toCommentResponse, toCursorPagination, toPagePagination, toPostResponse } from './dto';
+import {
+  toCommentResponse,
+  toCursorPagination,
+  toPagePagination,
+  toPostResponse,
+  toReactionsResponse,
+} from './dto';
 import {
   CreateCommentBody,
   CreatePostBody,
@@ -16,11 +23,13 @@ import {
   ExamPostIdParams,
   IdParams,
   PageQuery,
+  ReactBody,
   UpdatePostBody,
   type CreateCommentInput,
   type CreatePostInput,
   type CursorQueryInput,
   type PageQueryInput,
+  type ReactInput,
   type UpdatePostInput,
 } from './schemas';
 
@@ -34,11 +43,12 @@ export interface SocialRouters {
 export function createSocialRouters(deps: {
   posts: PostService;
   comments: CommentService;
+  reactions: ReactionService;
   authors: UserDirectory;
   /** requireAuth + requireOrganization, applied per route so unknown paths still 404. */
   guard: RequestHandler[];
 }): SocialRouters {
-  const { posts, comments, authors, guard } = deps;
+  const { posts, comments, reactions, authors, guard } = deps;
   // Spam protection for content creation (risk register 17).
   const writeLimiter = createRateLimiter({ windowMs: 60_000, limit: 30 });
 
@@ -53,8 +63,16 @@ export function createSocialRouters(deps: {
   };
 
   async function presentPosts(actor: Actor, items: Post[]) {
-    const directory = await authors.getSummaries(items.map((post) => post.authorId));
-    return items.map((post) => toPostResponse(post, directory, actor));
+    const [directory, summaries] = await Promise.all([
+      authors.getSummaries(items.map((post) => post.authorId)),
+      reactions.summarize(
+        actor,
+        items.map((post) => post.id),
+      ),
+    ]);
+    return items.map((post) =>
+      toPostResponse(post, directory, summaries.get(post.id) ?? emptyReactionSummary(), actor),
+    );
   }
 
   async function presentComments(actor: Actor, items: Comment[]) {
@@ -112,6 +130,17 @@ export function createSocialRouters(deps: {
     ok(res, { id, deleted: true });
   };
 
+  const react: RequestHandler = async (req, res) => {
+    const body = req.body as ReactInput;
+    const summary = await reactions.react(actorOf(req), postIdOf(req), body.type);
+    ok(res, toReactionsResponse(summary));
+  };
+
+  const unreact: RequestHandler = async (req, res) => {
+    const summary = await reactions.unreact(actorOf(req), postIdOf(req));
+    ok(res, toReactionsResponse(summary));
+  };
+
   const listComments: RequestHandler = async (req, res) => {
     const actor = actorOf(req);
     const query = req.query as unknown as CursorQueryInput;
@@ -155,6 +184,14 @@ export function createSocialRouters(deps: {
     updatePost,
   );
   v1.delete('/posts/:id', ...guard, validate({ params: IdParams }), deletePost);
+  v1.post(
+    '/posts/:id/reactions',
+    writeLimiter,
+    ...guard,
+    validate({ params: IdParams, body: ReactBody }),
+    react,
+  );
+  v1.delete('/posts/:id/reactions', ...guard, validate({ params: IdParams }), unreact);
   v1.get(
     '/posts/:id/comments',
     ...guard,

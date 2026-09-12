@@ -15,9 +15,10 @@ export interface UpdateProfileData {
   bio?: string | null;
 }
 
-/** What other modules may know about a user (e.g. to show a post's author). */
+/** What other modules may know about a user (authors, members, invitees). */
 export interface UserSummary {
   id: string;
+  email: string;
   username: string;
   displayName: string;
   avatarUrl: string | null;
@@ -27,12 +28,14 @@ export interface UserSummary {
 /** Public read contract of Identity for other modules - they never query users directly. */
 export interface UserDirectory {
   getSummaries(ids: readonly string[]): Promise<ReadonlyMap<string, UserSummary>>;
+  findByEmail(email: string): Promise<UserSummary | null>;
 }
 
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
   findSummaries(ids: readonly string[]): Promise<UserSummary[]>;
+  findSummaryByEmail(email: string): Promise<UserSummary | null>;
   /** Throws IdentityErrors.emailTaken / usernameTaken on a unique violation. */
   create(data: CreateUserData): Promise<User>;
   /** Throws IdentityErrors.usernameTaken when the new username is taken. */

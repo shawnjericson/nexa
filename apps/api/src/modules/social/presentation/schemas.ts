@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import '../../../shared/http/openapi';
+import { UserReference } from '../../identity';
+import { REACTION_TYPES } from '../domain/content';
+
+export { PagePagination, PageQuery, type PageQueryInput } from '../../../shared/http/pagination';
 
 // Content is stored as plain text; clients must render it escaped (no HTML).
 const Content = (max: number) =>
@@ -46,6 +50,8 @@ export const CreateCommentBody = z
   })
   .openapi('CreateCommentRequest');
 
+export const ReactBody = z.object({ type: z.enum(REACTION_TYPES) }).openapi('ReactRequest');
+
 export const IdParams = z.object({ id: z.uuid() });
 export const ExamPostIdParams = z.object({ postId: z.uuid() });
 
@@ -54,33 +60,33 @@ export const CursorQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
-export const PageQuery = z.object({
-  page: z.coerce.number().int().min(1).max(10_000).default(1),
-  limit: z.coerce.number().int().min(1).max(50).default(10),
-});
-
 // ─── Responses ─────────────────────────────────────────────────────────────
 
-export const Author = z
+export const Reactions = z
   .object({
-    id: z.uuid(),
-    username: z.string(),
-    display_name: z.string(),
-    avatar_url: z.string().nullable(),
-    deactivated: z.boolean(),
+    total: z.number().int(),
+    counts: z.object({
+      LIKE: z.number().int(),
+      LOVE: z.number().int(),
+      HAHA: z.number().int(),
+      CELEBRATE: z.number().int(),
+      SAD: z.number().int(),
+    }),
+    viewer_reaction: z.enum(REACTION_TYPES).nullable(),
   })
-  .openapi('Author');
+  .openapi('Reactions');
 
 export const PostResponse = z
   .object({
     id: z.uuid(),
     organization_id: z.uuid(),
-    author: Author.nullable(),
+    author: UserReference.nullable(),
     content: z.string(),
     image_url: z.string().nullable(),
     type: z.enum(['GENERAL', 'ANNOUNCEMENT', 'EVENT', 'POLL']),
     visibility: z.enum(['ORGANIZATION', 'DEPARTMENT', 'CHANNEL']),
     comment_count: z.number().int(),
+    reactions: Reactions,
     can_edit: z.boolean().openapi({ description: 'Whether the caller may edit (UI hint)' }),
     can_delete: z.boolean().openapi({ description: 'Whether the caller may delete (UI hint)' }),
     created_at: z.iso.datetime(),
@@ -93,7 +99,7 @@ export const CommentResponse = z
     id: z.uuid(),
     post_id: z.uuid(),
     parent_id: z.uuid().nullable(),
-    author: Author.nullable(),
+    author: UserReference.nullable(),
     content: z.string(),
     can_delete: z.boolean(),
     created_at: z.iso.datetime(),
@@ -109,20 +115,10 @@ export const CursorPagination = z
   })
   .openapi('CursorPagination');
 
-export const PagePagination = z
-  .object({
-    page: z.number().int(),
-    limit: z.number().int(),
-    total: z.number().int(),
-    total_pages: z.number().int(),
-    has_next: z.boolean(),
-  })
-  .openapi('PagePagination');
-
 export const Deleted = z.object({ id: z.uuid(), deleted: z.literal(true) }).openapi('Deleted');
 
 export type CreatePostInput = z.infer<typeof CreatePostBody>;
 export type UpdatePostInput = z.infer<typeof UpdatePostBody>;
 export type CreateCommentInput = z.infer<typeof CreateCommentBody>;
+export type ReactInput = z.infer<typeof ReactBody>;
 export type CursorQueryInput = z.infer<typeof CursorQuery>;
-export type PageQueryInput = z.infer<typeof PageQuery>;

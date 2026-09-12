@@ -112,23 +112,53 @@ Every social request runs inside one organization. It is taken from the optional
 organization, that one is used automatically. Suspended or removed members lose access
 immediately.
 
-| Method | Endpoint                     | Exam equivalent                   | Who                 |
-| ------ | ---------------------------- | --------------------------------- | ------------------- |
-| GET    | `/api/v1/feed?cursor&limit`  | `GET /api/posts?page&limit`       | members             |
-| POST   | `/api/v1/posts`              | `POST /api/posts`                 | members             |
-| GET    | `/api/v1/posts/:id`          | `GET /api/posts/:id`              | members             |
-| PUT    | `/api/v1/posts/:id`          | `PUT /api/posts/:id`              | author only         |
-| DELETE | `/api/v1/posts/:id`          | `DELETE /api/posts/:id`           | author or moderator |
-| GET    | `/api/v1/posts/:id/comments` | `GET /api/comments/post/:postId`  | members             |
-| POST   | `/api/v1/posts/:id/comments` | `POST /api/comments/post/:postId` | members             |
-| DELETE | `/api/v1/comments/:id`       | `DELETE /api/comments/:id`        | author or moderator |
+| Method | Endpoint                      | Exam equivalent                   | Who                 |
+| ------ | ----------------------------- | --------------------------------- | ------------------- |
+| GET    | `/api/v1/feed?cursor&limit`   | `GET /api/posts?page&limit`       | members             |
+| POST   | `/api/v1/posts`               | `POST /api/posts`                 | members             |
+| GET    | `/api/v1/posts/:id`           | `GET /api/posts/:id`              | members             |
+| PUT    | `/api/v1/posts/:id`           | `PUT /api/posts/:id`              | author only         |
+| DELETE | `/api/v1/posts/:id`           | `DELETE /api/posts/:id`           | author or moderator |
+| GET    | `/api/v1/posts/:id/comments`  | `GET /api/comments/post/:postId`  | members             |
+| POST   | `/api/v1/posts/:id/comments`  | `POST /api/comments/post/:postId` | members             |
+| DELETE | `/api/v1/comments/:id`        | `DELETE /api/comments/:id`        | author or moderator |
+| POST   | `/api/v1/posts/:id/reactions` | -                                 | members             |
+| DELETE | `/api/v1/posts/:id/reactions` | -                                 | members             |
 
 - Posts and comments of other organizations answer **404**, never 403.
 - Deletes are soft. Deleting a comment removes its replies; replies are one level deep.
 - `ANNOUNCEMENT` posts need the `announcement.publish` permission. A moderator is anyone with
   `post.moderate`, which OWNER and ADMIN have.
+- Reactions (`LIKE`, `LOVE`, `HAHA`, `CELEBRATE`, `SAD`): one per person and post, and reacting
+  again replaces it. Posts include per-type counts and your own reaction.
 - `/api/v1` lists use cursor pagination (`pagination.next_cursor`); the exam routes use
   `page`/`limit` with totals. See ADR-013.
+
+## Organization management
+
+| Method       | Endpoint                                                        | Permission                                            |
+| ------------ | --------------------------------------------------------------- | ----------------------------------------------------- |
+| GET / POST   | `/api/v1/organizations`                                         | signed in                                             |
+| GET / PUT    | `/api/v1/organizations/:organizationId`                         | member / `organization.update`                        |
+| GET          | `/api/v1/organizations/:organizationId/members`                 | member                                                |
+| PATCH        | `/api/v1/organizations/:organizationId/members/:userId`         | `member.role.update` (role), `member.remove` (status) |
+| DELETE       | `/api/v1/organizations/:organizationId/members/:userId`         | `member.remove`, or yourself (leave)                  |
+| GET / POST   | `/api/v1/organizations/:organizationId/invitations`             | `member.invite`                                       |
+| DELETE       | `/api/v1/organizations/:organizationId/invitations/:id`         | `member.invite`                                       |
+| POST         | `/api/v1/invitations/accept`                                    | the invited email                                     |
+| GET / POST   | `/api/v1/organizations/:organizationId/departments`             | member / `department.manage`                          |
+| PUT / DELETE | `/api/v1/organizations/:organizationId/departments/:id`         | `department.manage`                                   |
+| GET          | `/api/v1/organizations/:organizationId/departments/:id/members` | member                                                |
+| PUT / DELETE | `.../departments/:id/members/:userId`                           | `department.manage`                                   |
+
+- **Role hierarchy** OWNER > ADMIN > MANAGER > MEMBER: you can only manage members ranked below
+  you and grant roles below your own; only OWNERs grant OWNER.
+- **The last active OWNER** can never be demoted, suspended or removed. Membership changes are
+  serialized with a row lock on the organization.
+- **Invitations**: the token is shown once, stored hashed, valid 7 days, and only the invited
+  email can accept it, exactly once.
+- **Departments**: leaving the organization removes you from its departments automatically.
+- See ADR-014.
 
 ## Scripts
 

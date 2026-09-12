@@ -8,6 +8,12 @@ export interface OrganizationContext {
   permissions: ReadonlySet<string>;
 }
 
+/** An authenticated user acting inside one organization. */
+export interface OrganizationActor {
+  userId: string;
+  organization: OrganizationContext;
+}
+
 export function hasPermission(context: OrganizationContext, permission: PermissionKey): boolean {
   return context.permissions.has(permission);
 }

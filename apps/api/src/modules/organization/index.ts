@@ -1,14 +1,32 @@
-import type { RequestHandler } from 'express';
+import type { RequestHandler, Router } from 'express';
 import type { Env } from '../../config/env';
 import type { PrismaClient } from '../../generated/prisma/client';
 import type { EventBus } from '../../shared/events/event-bus';
-import { USER_REGISTERED, type ProfileVisibility, type UserRegisteredEvent } from '../identity';
+import {
+  USER_REGISTERED,
+  type ProfileVisibility,
+  type UserDirectory,
+  type UserRegisteredEvent,
+} from '../identity';
+import { DepartmentService } from './application/department.service';
+import { InvitationService } from './application/invitation.service';
+import { MembershipService } from './application/membership.service';
+import { OrganizationManagementService } from './application/organization-management.service';
 import { OrganizationService } from './application/organization.service';
+import { PrismaDepartmentRepository } from './infrastructure/prisma-department.repository';
+import { PrismaInvitationRepository } from './infrastructure/prisma-invitation.repository';
+import { PrismaMembershipRepository } from './infrastructure/prisma-membership.repository';
 import { PrismaOrganizationRepository } from './infrastructure/prisma-organization.repository';
+import './presentation/openapi';
 import { createRequireOrganization } from './presentation/require-organization';
+import { createOrganizationRouter } from './presentation/routes';
 
 // Public contract of the Organization module.
-export { hasPermission, type OrganizationContext } from './domain/organization-context';
+export {
+  hasPermission,
+  type OrganizationActor,
+  type OrganizationContext,
+} from './domain/organization-context';
 export {
   PERMISSION_KEYS,
   SYSTEM_ROLES,
@@ -20,8 +38,13 @@ export { organizationContext, requirePermission } from './presentation/require-o
 export interface OrganizationModule {
   /** Plugged into Identity so profiles are only visible to co-members. */
   profileVisibility: ProfileVisibility;
-  /** Resolves req.organization; mount after requireAuth. */
+  /** Resolves req.organization from the optional X-Organization-Id header; mount after requireAuth. */
   requireOrganization: RequestHandler;
+  /**
+   * Organization, member, invitation and department endpoints (mounted under /api/v1).
+   * Built lazily because it needs Identity, which itself depends on profileVisibility.
+   */
+  createRouter(deps: { requireAuth: RequestHandler; users: UserDirectory }): Router;
 }
 
 export function createOrganizationModule(deps: {
@@ -29,12 +52,15 @@ export function createOrganizationModule(deps: {
   events: EventBus;
   config: Pick<Env, 'DEFAULT_ORG_SLUG' | 'DEFAULT_ORG_NAME'>;
 }): OrganizationModule {
+  const { prisma, events, config } = deps;
+  const organizations = new PrismaOrganizationRepository(prisma);
+  const memberships = new PrismaMembershipRepository(prisma);
   const service = new OrganizationService({
-    organizations: new PrismaOrganizationRepository(deps.prisma),
-    defaultOrganization: { slug: deps.config.DEFAULT_ORG_SLUG, name: deps.config.DEFAULT_ORG_NAME },
+    organizations,
+    defaultOrganization: { slug: config.DEFAULT_ORG_SLUG, name: config.DEFAULT_ORG_NAME },
   });
 
-  deps.events.subscribe<UserRegisteredEvent>(USER_REGISTERED, async (event) => {
+  events.subscribe<UserRegisteredEvent>(USER_REGISTERED, async (event) => {
     if (event.subject_id) await service.joinDefaultOrganization(event.subject_id);
   });
 
@@ -42,6 +68,24 @@ export function createOrganizationModule(deps: {
     profileVisibility: {
       canView: (viewerId, targetId) => service.sharesOrganization(viewerId, targetId),
     },
-    requireOrganization: createRequireOrganization(service),
+    requireOrganization: createRequireOrganization(service, 'header'),
+    createRouter: ({ requireAuth, users }) =>
+      createOrganizationRouter({
+        requireAuth,
+        requireOrganizationFromPath: createRequireOrganization(service, 'path'),
+        management: new OrganizationManagementService({ organizations, events }),
+        memberships: new MembershipService({ members: memberships, events }),
+        invitations: new InvitationService({
+          invitations: new PrismaInvitationRepository(prisma),
+          members: memberships,
+          users,
+          events,
+        }),
+        departments: new DepartmentService({
+          departments: new PrismaDepartmentRepository(prisma),
+          members: memberships,
+        }),
+        users,
+      }),
   };
 }

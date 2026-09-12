@@ -1,7 +1,36 @@
-import type { PrismaClient } from '../../../generated/prisma/client';
+import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
 import { isUniqueViolation } from '../../../infrastructure/database/prisma-errors';
+import { OrganizationErrors } from '../domain/organization-errors';
 import { SYSTEM_ROLES, type SystemRoleKey } from '../domain/permissions';
-import type { MembershipRecord, OrganizationRepository } from '../domain/ports';
+import type {
+  MembershipRecord,
+  Organization,
+  OrganizationChanges,
+  OrganizationRepository,
+  OrganizationWithMembership,
+} from '../domain/ports';
+
+const ORGANIZATION_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  logoUrl: true,
+  timezone: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.OrganizationSelect;
+
+/** Nested write creating the system roles and their permissions for a new organization. */
+function systemRoles() {
+  return {
+    create: SYSTEM_ROLES.map((role) => ({
+      key: role.key,
+      name: role.name,
+      isSystem: true,
+      permissions: { create: role.permissions.map((permissionKey) => ({ permissionKey })) },
+    })),
+  } satisfies Prisma.RoleCreateNestedManyWithoutOrganizationInput;
+}
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -16,20 +45,7 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
     try {
       // Organization, roles and role permissions are created atomically in one nested write.
       return await this.prisma.organization.create({
-        data: {
-          slug,
-          name,
-          roles: {
-            create: SYSTEM_ROLES.map((role) => ({
-              key: role.key,
-              name: role.name,
-              isSystem: true,
-              permissions: {
-                create: role.permissions.map((permissionKey) => ({ permissionKey })),
-              },
-            })),
-          },
-        },
+        data: { slug, name, roles: systemRoles() },
         select: { id: true },
       });
     } catch (err) {
@@ -108,5 +124,67 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       roleKey: row.role.key,
       permissions: row.role.permissions.map((permission) => permission.permissionKey),
     }));
+  }
+
+  findById(id: string): Promise<Organization | null> {
+    return this.prisma.organization.findUnique({ where: { id }, select: ORGANIZATION_SELECT });
+  }
+
+  countMembers(organizationId: string): Promise<number> {
+    return this.prisma.organizationMember.count({ where: { organizationId } });
+  }
+
+  async listForUser(userId: string): Promise<OrganizationWithMembership[]> {
+    const rows = await this.prisma.organizationMember.findMany({
+      where: { userId },
+      orderBy: { joinedAt: 'asc' },
+      select: {
+        status: true,
+        joinedAt: true,
+        role: { select: { key: true } },
+        organization: { select: ORGANIZATION_SELECT },
+      },
+    });
+    return rows.map((row) => ({
+      ...row.organization,
+      roleKey: row.role.key,
+      membershipStatus: row.status,
+      joinedAt: row.joinedAt,
+    }));
+  }
+
+  async createWithOwner(
+    { name, slug, timezone }: { name: string; slug: string; timezone?: string },
+    ownerId: string,
+  ): Promise<Organization> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const { roles, ...organization } = await tx.organization.create({
+          data: { name, slug, ...(timezone && { timezone }), roles: systemRoles() },
+          select: {
+            ...ORGANIZATION_SELECT,
+            roles: { where: { key: 'OWNER' }, select: { id: true } },
+          },
+        });
+        const ownerRole = roles[0];
+        if (!ownerRole) throw new Error('The OWNER role was not created');
+
+        await tx.organizationMember.create({
+          data: { organizationId: organization.id, userId: ownerId, roleId: ownerRole.id },
+        });
+        return organization;
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) throw OrganizationErrors.slugTaken();
+      throw err;
+    }
+  }
+
+  update(id: string, changes: OrganizationChanges): Promise<Organization> {
+    return this.prisma.organization.update({
+      where: { id },
+      data: changes,
+      select: ORGANIZATION_SELECT,
+    });
   }
 }
