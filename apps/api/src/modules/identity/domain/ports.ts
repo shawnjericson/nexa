@@ -1,5 +1,5 @@
 import type { AuthContext } from './auth-context';
-import type { User } from './user';
+import type { User, UserStatus } from './user';
 
 export interface CreateUserData {
   email: string;
@@ -15,9 +15,24 @@ export interface UpdateProfileData {
   bio?: string | null;
 }
 
+/** What other modules may know about a user (e.g. to show a post's author). */
+export interface UserSummary {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  status: UserStatus;
+}
+
+/** Public read contract of Identity for other modules - they never query users directly. */
+export interface UserDirectory {
+  getSummaries(ids: readonly string[]): Promise<ReadonlyMap<string, UserSummary>>;
+}
+
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
+  findSummaries(ids: readonly string[]): Promise<UserSummary[]>;
   /** Throws IdentityErrors.emailTaken / usernameTaken on a unique violation. */
   create(data: CreateUserData): Promise<User>;
   /** Throws IdentityErrors.usernameTaken when the new username is taken. */

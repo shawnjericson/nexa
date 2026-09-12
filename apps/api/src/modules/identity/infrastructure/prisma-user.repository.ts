@@ -4,7 +4,12 @@ import {
   isUniqueViolation,
 } from '../../../infrastructure/database/prisma-errors';
 import { IdentityErrors } from '../domain/identity-errors';
-import type { CreateUserData, UpdateProfileData, UserRepository } from '../domain/ports';
+import type {
+  CreateUserData,
+  UpdateProfileData,
+  UserRepository,
+  UserSummary,
+} from '../domain/ports';
 import type { User } from '../domain/user';
 
 function toIdentityConflict(err: unknown): unknown {
@@ -25,6 +30,13 @@ export class PrismaUserRepository implements UserRepository {
   // email is citext, so this lookup is case-insensitive.
   findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  findSummaries(ids: readonly string[]): Promise<UserSummary[]> {
+    return this.prisma.user.findMany({
+      where: { id: { in: [...new Set(ids)] } },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+    });
   }
 
   async create(data: CreateUserData): Promise<User> {

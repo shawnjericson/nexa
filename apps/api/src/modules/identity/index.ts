@@ -4,7 +4,7 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import type { EventBus } from '../../shared/events/event-bus';
 import { AuthService } from './application/auth.service';
 import { UserService } from './application/user.service';
-import type { ProfileVisibility } from './domain/ports';
+import type { ProfileVisibility, UserDirectory } from './domain/ports';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
 import { JwtAccessTokenService } from './infrastructure/jwt-access-token.service';
 import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-token.repository';
@@ -17,7 +17,7 @@ import { createUsersRouter } from './presentation/users.routes';
 // Public contract of the Identity module - other modules import only from here.
 export type { AuthContext } from './domain/auth-context';
 export { USER_REGISTERED, type UserRegisteredEvent } from './domain/events';
-export type { ProfileVisibility } from './domain/ports';
+export type { ProfileVisibility, UserDirectory, UserSummary } from './domain/ports';
 export { requireAuthContext } from './presentation/require-auth';
 
 export type IdentityConfig = Pick<
@@ -33,6 +33,7 @@ export interface IdentityModule {
   authRouter: Router;
   usersRouter: Router;
   requireAuth: RequestHandler;
+  userDirectory: UserDirectory;
 }
 
 export function createIdentityModule(deps: {
@@ -68,5 +69,11 @@ export function createIdentityModule(deps: {
       users: new UserService({ users, visibility: profileVisibility }),
       requireAuth,
     }),
+    userDirectory: {
+      async getSummaries(ids) {
+        const summaries = await users.findSummaries(ids);
+        return new Map(summaries.map((summary) => [summary.id, summary]));
+      },
+    },
   };
 }

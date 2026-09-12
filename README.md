@@ -33,7 +33,8 @@ apps/
       infrastructure/     database, logger
       modules/
         identity/         register, login, tokens, sessions, profiles
-        organization/     organizations, memberships, roles & permissions
+        organization/     organizations, memberships, roles & permissions, org context
+        social/           posts, comments, feed
       shared/             errors, HTTP helpers, domain events
       app.ts              composition root + Express pipeline
       server.ts           process entry point
@@ -103,6 +104,31 @@ openssl x509 -in apps/api/certs/postgres-server.pem -noout -fingerprint -sha256
 - Deactivated accounts lose access immediately, even with an unexpired access token.
 - Login answers identically for unknown emails and wrong passwords, and auth endpoints are
   rate-limited.
+
+## Organizations & social
+
+Every social request runs inside one organization. It is taken from the optional
+`X-Organization-Id` header, **validated against your membership**. If you belong to a single
+organization, that one is used automatically. Suspended or removed members lose access
+immediately.
+
+| Method | Endpoint                     | Exam equivalent                   | Who                 |
+| ------ | ---------------------------- | --------------------------------- | ------------------- |
+| GET    | `/api/v1/feed?cursor&limit`  | `GET /api/posts?page&limit`       | members             |
+| POST   | `/api/v1/posts`              | `POST /api/posts`                 | members             |
+| GET    | `/api/v1/posts/:id`          | `GET /api/posts/:id`              | members             |
+| PUT    | `/api/v1/posts/:id`          | `PUT /api/posts/:id`              | author only         |
+| DELETE | `/api/v1/posts/:id`          | `DELETE /api/posts/:id`           | author or moderator |
+| GET    | `/api/v1/posts/:id/comments` | `GET /api/comments/post/:postId`  | members             |
+| POST   | `/api/v1/posts/:id/comments` | `POST /api/comments/post/:postId` | members             |
+| DELETE | `/api/v1/comments/:id`       | `DELETE /api/comments/:id`        | author or moderator |
+
+- Posts and comments of other organizations answer **404**, never 403.
+- Deletes are soft. Deleting a comment removes its replies; replies are one level deep.
+- `ANNOUNCEMENT` posts need the `announcement.publish` permission. A moderator is anyone with
+  `post.moderate`, which OWNER and ADMIN have.
+- `/api/v1` lists use cursor pagination (`pagination.next_cursor`); the exam routes use
+  `page`/`limit` with totals. See ADR-013.
 
 ## Scripts
 

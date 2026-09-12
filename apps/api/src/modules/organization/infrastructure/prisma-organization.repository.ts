@@ -1,7 +1,7 @@
 import type { PrismaClient } from '../../../generated/prisma/client';
 import { isUniqueViolation } from '../../../infrastructure/database/prisma-errors';
 import { SYSTEM_ROLES, type SystemRoleKey } from '../domain/permissions';
-import type { OrganizationRepository } from '../domain/ports';
+import type { MembershipRecord, OrganizationRepository } from '../domain/ports';
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -84,5 +84,29 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       select: { id: true },
     });
     return shared !== null;
+  }
+
+  async findMemberships(
+    userId: string,
+    { organizationId, limit }: { organizationId?: string; limit: number },
+  ): Promise<MembershipRecord[]> {
+    const rows = await this.prisma.organizationMember.findMany({
+      where: { userId, ...(organizationId && { organizationId }) },
+      orderBy: { joinedAt: 'asc' },
+      take: limit,
+      select: {
+        id: true,
+        organizationId: true,
+        status: true,
+        role: { select: { key: true, permissions: { select: { permissionKey: true } } } },
+      },
+    });
+    return rows.map((row) => ({
+      membershipId: row.id,
+      organizationId: row.organizationId,
+      status: row.status,
+      roleKey: row.role.key,
+      permissions: row.role.permissions.map((permission) => permission.permissionKey),
+    }));
   }
 }

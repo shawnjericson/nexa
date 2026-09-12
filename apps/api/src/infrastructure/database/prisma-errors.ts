@@ -4,6 +4,11 @@ export function isUniqueViolation(err: unknown): err is Prisma.PrismaClientKnown
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
 
+/** The record targeted by an update/delete did not match (e.g. it was deleted concurrently). */
+export function isRecordNotFound(err: unknown): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025';
+}
+
 /**
  * Best-effort text naming the violated unique constraint. The shape of `meta` differs between
  * query engines and driver adapters, so both the message and the metadata are included.

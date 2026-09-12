@@ -35,6 +35,13 @@ export function successResponse<T extends z.ZodType>(data: T) {
   return z.object({ success: z.literal(true), data });
 }
 
+export function paginatedResponse<T extends z.ZodType, P extends z.ZodType>(
+  item: T,
+  pagination: P,
+) {
+  return z.object({ success: z.literal(true), data: z.array(item), pagination });
+}
+
 export function jsonContent(schema: z.ZodType) {
   return { 'application/json': { schema } };
 }
