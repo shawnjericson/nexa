@@ -1,0 +1,7 @@
+# Keep LF in the working tree on every OS (matches .editorconfig and Prettier)
+* text=auto eol=lf
+
+*.docx binary
+*.png binary
+*.jpg binary
+*.ico binary
