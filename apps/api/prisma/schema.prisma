@@ -1,0 +1,10 @@
+// NEXA v1 database schema (PostgreSQL 18). Connection settings live in prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

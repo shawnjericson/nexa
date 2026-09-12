@@ -1,0 +1,28 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Secrets - never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Generated
+apps/api/src/generated/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Word lock files
+~$*
+
+# "Agent skills" downloaded by `prisma init` - not part of the project
+apps/api/.agents/
+apps/api/.claude/
+apps/api/.windsurf/
+apps/api/skills-lock.json
