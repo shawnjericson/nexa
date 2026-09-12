@@ -1,0 +1,19 @@
+import { Prisma } from '../../generated/prisma/client';
+
+export function isUniqueViolation(err: unknown): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+}
+
+/**
+ * Best-effort text naming the violated unique constraint. The shape of `meta` differs between
+ * query engines and driver adapters, so both the message and the metadata are included.
+ */
+export function describeUniqueViolation(err: Prisma.PrismaClientKnownRequestError): string {
+  let meta = '';
+  try {
+    meta = JSON.stringify(err.meta ?? {});
+  } catch {
+    // circular metadata - the message alone is enough
+  }
+  return `${err.message} ${meta}`;
+}

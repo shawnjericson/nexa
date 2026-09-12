@@ -39,6 +39,28 @@ export function jsonContent(schema: z.ZodType) {
   return { 'application/json': { schema } };
 }
 
+const ERROR_DESCRIPTIONS: Record<number, string> = {
+  400: 'Invalid input',
+  401: 'Missing, invalid or expired credentials',
+  403: 'Not allowed',
+  404: 'Not found',
+  409: 'Conflicts with existing data',
+  413: 'Payload too large',
+  429: 'Too many requests',
+  503: 'A dependency is unavailable',
+};
+
+export function errorResponses(...statuses: number[]) {
+  return Object.fromEntries(
+    statuses.map((status) => [
+      status,
+      { description: ERROR_DESCRIPTIONS[status] ?? 'Error', content: jsonContent(ErrorResponse) },
+    ]),
+  );
+}
+
+export const bearerAuth = [{ bearerAuth: [] }];
+
 export function generateOpenApiDocument() {
   return new OpenApiGeneratorV3(registry.definitions).generateDocument({
     openapi: '3.0.3',

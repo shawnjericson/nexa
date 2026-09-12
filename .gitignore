@@ -11,6 +11,9 @@ coverage/
 # Generated
 apps/api/src/generated/
 
+# Environment-specific TLS certificates (fetched per environment, see README)
+apps/api/certs/
+
 # OS / editor
 .DS_Store
 Thumbs.db

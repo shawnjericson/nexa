@@ -16,6 +16,13 @@ function toAppError(err: unknown): AppError {
   if (err instanceof ZodError) return Errors.validation(formatZodIssues(err));
 
   if (typeof err === 'object' && err !== null) {
+    // Safety net for Prisma errors a repository did not translate into a domain error.
+    const { name, code } = err as { name?: string; code?: string };
+    if (name === 'PrismaClientKnownRequestError') {
+      if (code === 'P2002') return new AppError(409, 'CONFLICT', 'Resource already exists');
+      if (code === 'P2025') return new AppError(404, 'NOT_FOUND', 'Resource not found');
+    }
+
     const httpError = err as HttpLikeError;
     if (httpError.type === 'entity.parse.failed') {
       return new AppError(400, 'INVALID_JSON', 'Request body contains invalid JSON');

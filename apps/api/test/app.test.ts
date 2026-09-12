@@ -1,8 +1,9 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import { prisma } from './helpers/db';
 
-const healthyApp = createApp({ readinessChecks: { database: async () => {} } });
+const healthyApp = createApp({ prisma, readinessChecks: { database: async () => {} } });
 
 describe('health & readiness', () => {
   it('GET /health reports the process is alive', async () => {
@@ -21,6 +22,7 @@ describe('health & readiness', () => {
 
   it('GET /ready returns 503 when a dependency is down', async () => {
     const app = createApp({
+      prisma,
       readinessChecks: {
         database: async () => {
           throw new Error('connection refused');
@@ -76,7 +78,7 @@ describe('error contract', () => {
 
   it('malformed JSON bodies return 400 INVALID_JSON', async () => {
     const res = await request(healthyApp)
-      .post('/api/v1/anything')
+      .post('/api/v1/auth/login')
       .set('Content-Type', 'application/json')
       .send('{"email": ');
 
@@ -93,11 +95,14 @@ describe('error contract', () => {
 });
 
 describe('API documentation', () => {
-  it('serves the OpenAPI document', async () => {
+  it('serves the OpenAPI document including the identity endpoints', async () => {
     const res = await request(healthyApp).get('/openapi.json');
 
     expect(res.status).toBe(200);
     expect(res.body.openapi).toMatch(/^3\./);
     expect(res.body.info.title).toBe('NEXA API');
+    expect(Object.keys(res.body.paths)).toEqual(
+      expect.arrayContaining(['/api/v1/auth/login', '/api/v1/users/me', '/api/v1/users/{id}']),
+    );
   });
 });

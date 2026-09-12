@@ -4,7 +4,7 @@ import { env } from './config/env';
 import { checkDatabase, prisma } from './infrastructure/database/prisma';
 import { logger } from './infrastructure/logger/logger';
 
-const app = createApp({ readinessChecks: { database: checkDatabase } });
+const app = createApp({ prisma, readinessChecks: { database: checkDatabase } });
 const server = createServer(app);
 
 server.listen(env.PORT, () => {
