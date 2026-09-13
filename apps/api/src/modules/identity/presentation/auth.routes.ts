@@ -25,6 +25,9 @@ export function createAuthRouter(deps: { auth: AuthService; requireAuth: Request
   const router = Router();
   // Brute force and credential stuffing protection (risk register 4.2 and 17).
   const authLimiter = createRateLimiter({ windowMs: 15 * 60_000, limit: 20 });
+  // A refresh token is a long random secret with reuse detection, so there is nothing to guess;
+  // and every page load spends one. Refreshing only needs a flood guard.
+  const refreshLimiter = createRateLimiter({ windowMs: 60_000, limit: 60 });
 
   router.post('/register', authLimiter, validate({ body: RegisterBody }), async (req, res) => {
     const body = req.body as RegisterInput;
@@ -43,7 +46,7 @@ export function createAuthRouter(deps: { auth: AuthService; requireAuth: Request
     ok(res, { ...toTokensResponse(tokens), user: toMeResponse(user) });
   });
 
-  router.post('/refresh', authLimiter, validate({ body: RefreshBody }), async (req, res) => {
+  router.post('/refresh', refreshLimiter, validate({ body: RefreshBody }), async (req, res) => {
     const body = req.body as RefreshInput;
     const tokens = await auth.refresh(body.refresh_token, clientInfo(req));
     ok(res, toTokensResponse(tokens));
