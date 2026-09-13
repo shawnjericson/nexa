@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type { Redis } from 'ioredis';
 import { Server, type Socket } from 'socket.io';
+import { logger } from '../logger/logger';
 
 export type SocketMiddleware = (socket: Socket, next: (err?: Error) => void) => void;
 export type ConnectionHandler = (socket: Socket) => void;
@@ -13,6 +14,7 @@ export type ConnectionHandler = (socket: Socket) => void;
  */
 export class RealtimeHub {
   private io: Server | null = null;
+  private subscriber: Redis | null = null;
   private readonly middlewares: SocketMiddleware[] = [];
   private readonly handlers: ConnectionHandler[] = [];
 
@@ -31,9 +33,14 @@ export class RealtimeHub {
     });
     // Fan events out across API instances (ADR-015). Channels share the ACL-permitted prefix.
     if (options.redis) {
-      io.adapter(
-        createAdapter(options.redis, options.redis.duplicate(), { key: 'nexa:socket.io' }),
+      // duplicate() doesn't copy listeners: without its own handler, connection errors of the
+      // subscriber would surface as unhandled 'error' events instead of log lines.
+      const subscriber = options.redis.duplicate();
+      subscriber.on('error', (err: Error) =>
+        logger.warn({ err: err.message }, 'Redis subscriber connection error'),
       );
+      this.subscriber = subscriber;
+      io.adapter(createAdapter(options.redis, subscriber, { key: 'nexa:socket.io' }));
     }
     for (const middleware of this.middlewares) io.use(middleware);
     io.on('connection', (socket) => {
@@ -53,5 +60,8 @@ export class RealtimeHub {
     const io = this.io;
     this.io = null;
     if (io) await io.close();
+    const subscriber = this.subscriber;
+    this.subscriber = null;
+    await subscriber?.quit().catch(() => undefined);
   }
 }
