@@ -11,14 +11,18 @@ import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-to
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository';
 import { createAuthRouter } from './presentation/auth.routes';
 import './presentation/openapi';
-import { createRequireAuth } from './presentation/require-auth';
+import {
+  createAuthenticator,
+  createRequireAuth,
+  type Authenticate,
+} from './presentation/require-auth';
 import { createUsersRouter } from './presentation/users.routes';
 
 // Public contract of the Identity module - other modules import only from here.
 export type { AuthContext } from './domain/auth-context';
 export { USER_REGISTERED, type UserRegisteredEvent } from './domain/events';
 export type { ProfileVisibility, UserDirectory, UserSummary } from './domain/ports';
-export { requireAuthContext } from './presentation/require-auth';
+export { requireAuthContext, type Authenticate } from './presentation/require-auth';
 export { UserReference } from './presentation/schemas';
 export { toUserReference } from './presentation/user.dto';
 
@@ -35,6 +39,8 @@ export interface IdentityModule {
   authRouter: Router;
   usersRouter: Router;
   requireAuth: RequestHandler;
+  /** Same checks as requireAuth, for non-HTTP transports (WebSocket handshakes). */
+  authenticate: Authenticate;
   userDirectory: UserDirectory;
 }
 
@@ -62,10 +68,12 @@ export function createIdentityModule(deps: {
       refreshReuseGraceSeconds: config.REFRESH_REUSE_GRACE_SECONDS,
     },
   });
-  const requireAuth = createRequireAuth({ accessTokens, users });
+  const authenticate = createAuthenticator({ accessTokens, users });
+  const requireAuth = createRequireAuth(authenticate);
 
   return {
     requireAuth,
+    authenticate,
     authRouter: createAuthRouter({ auth, requireAuth }),
     usersRouter: createUsersRouter({
       users: new UserService({ users, visibility: profileVisibility }),

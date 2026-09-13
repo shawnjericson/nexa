@@ -28,6 +28,11 @@ const EnvSchema = z.object({
   // PEM file of the server certificate to pin; without it the connection is encrypted but unverified.
   DATABASE_SSL_CA_FILE: z.string().optional(),
   MONGODB_URI: z.string().optional(),
+  // Without Redis the API still runs on one instance: presence, realtime fan-out and rate
+  // limits fall back to in-process state (risk register 16: Redis degraded mode).
+  REDIS_URL: z.string().optional(),
+  // PEM file of the server certificate to pin for rediss:// connections.
+  REDIS_TLS_CA_FILE: z.string().optional(),
 
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),

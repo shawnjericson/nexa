@@ -13,9 +13,12 @@ import { InvitationService } from './application/invitation.service';
 import { MembershipService } from './application/membership.service';
 import { OrganizationManagementService } from './application/organization-management.service';
 import { OrganizationService } from './application/organization.service';
+import type { OrganizationContext } from './domain/organization-context';
+import type { OrganizationDirectory } from './domain/organization-directory';
 import { PrismaDepartmentRepository } from './infrastructure/prisma-department.repository';
 import { PrismaInvitationRepository } from './infrastructure/prisma-invitation.repository';
 import { PrismaMembershipRepository } from './infrastructure/prisma-membership.repository';
+import { PrismaOrganizationDirectory } from './infrastructure/prisma-organization-directory';
 import { PrismaOrganizationRepository } from './infrastructure/prisma-organization.repository';
 import './presentation/openapi';
 import { createRequireOrganization } from './presentation/require-organization';
@@ -27,6 +30,7 @@ export {
   type OrganizationActor,
   type OrganizationContext,
 } from './domain/organization-context';
+export type { OrganizationDirectory } from './domain/organization-directory';
 export {
   PERMISSION_KEYS,
   SYSTEM_ROLES,
@@ -35,11 +39,19 @@ export {
 } from './domain/permissions';
 export { organizationContext, requirePermission } from './presentation/require-organization';
 
+export type ResolveOrganizationContext = (
+  userId: string,
+  organizationId?: string,
+) => Promise<OrganizationContext>;
+
 export interface OrganizationModule {
   /** Plugged into Identity so profiles are only visible to co-members. */
   profileVisibility: ProfileVisibility;
   /** Resolves req.organization from the optional X-Organization-Id header; mount after requireAuth. */
   requireOrganization: RequestHandler;
+  /** Same resolution as requireOrganization, for non-HTTP transports (WebSocket handshakes). */
+  resolveContext: ResolveOrganizationContext;
+  directory: OrganizationDirectory;
   /**
    * Organization, member, invitation and department endpoints (mounted under /api/v1).
    * Built lazily because it needs Identity, which itself depends on profileVisibility.
@@ -69,6 +81,8 @@ export function createOrganizationModule(deps: {
       canView: (viewerId, targetId) => service.sharesOrganization(viewerId, targetId),
     },
     requireOrganization: createRequireOrganization(service, 'header'),
+    resolveContext: (userId, organizationId) => service.resolveContext(userId, organizationId),
+    directory: new PrismaOrganizationDirectory(prisma),
     createRouter: ({ requireAuth, users }) =>
       createOrganizationRouter({
         requireAuth,

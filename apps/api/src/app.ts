@@ -1,10 +1,13 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
+import type { Redis } from 'ioredis';
 import { env } from './config/env';
 import type { PrismaClient } from './generated/prisma/client';
 import { logger } from './infrastructure/logger/logger';
 import { httpLogger } from './infrastructure/logger/http-logger';
+import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
+import { createCommunicationModule } from './modules/communication';
 import { createIdentityModule } from './modules/identity';
 import { createOrganizationModule } from './modules/organization';
 import { createSocialModule } from './modules/social';
@@ -17,6 +20,10 @@ import { globalRateLimiter } from './shared/http/rate-limit';
 
 export interface AppDependencies {
   prisma: PrismaClient;
+  /** Optional: presence and multi-instance fan-out use Redis when it is provided. */
+  redis?: Redis | null;
+  /** Socket.IO hub; server.ts attaches it to the HTTP server. Emits are no-ops until then. */
+  realtime?: RealtimeHub;
   readinessChecks?: Record<string, ReadinessCheck>;
 }
 
@@ -25,7 +32,12 @@ export interface AppDependencies {
  * request id + logging -> security headers -> CORS -> rate limit -> body parsing
  * -> JWT -> organization context -> validation -> controller -> service -> repository
  */
-export function createApp({ prisma, readinessChecks = {} }: AppDependencies): Express {
+export function createApp({
+  prisma,
+  redis = null,
+  realtime = new RealtimeHub(),
+  readinessChecks = {},
+}: AppDependencies): Express {
   const events = new InProcessEventBus(logger);
   const organization = createOrganizationModule({ prisma, events, config: env });
   const identity = createIdentityModule({
@@ -34,11 +46,18 @@ export function createApp({ prisma, readinessChecks = {} }: AppDependencies): Ex
     profileVisibility: organization.profileVisibility,
     config: env,
   });
-  const social = createSocialModule({
+  const guard = [identity.requireAuth, organization.requireOrganization];
+  const social = createSocialModule({ prisma, events, authors: identity.userDirectory, guard });
+  const communication = createCommunicationModule({
     prisma,
     events,
-    authors: identity.userDirectory,
-    guard: [identity.requireAuth, organization.requireOrganization],
+    hub: realtime,
+    redis,
+    users: identity.userDirectory,
+    directory: organization.directory,
+    authenticate: identity.authenticate,
+    resolveContext: organization.resolveContext,
+    guard,
   });
   const organizationRouter = organization.createRouter({
     requireAuth: identity.requireAuth,
@@ -63,6 +82,7 @@ export function createApp({ prisma, readinessChecks = {} }: AppDependencies): Ex
   v1.use('/users', identity.usersRouter);
   v1.use(organizationRouter);
   v1.use(social.v1);
+  v1.use(communication.router);
   app.use('/api/v1', v1);
 
   // Exam contract (ADR-010): the same use cases without the version segment.

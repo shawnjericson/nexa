@@ -33,6 +33,11 @@ export default defineConfig({
       REFRESH_REUSE_GRACE_SECONDS: '0',
       DEFAULT_ORG_SLUG: 'nexa-test',
       DEFAULT_ORG_NAME: 'NEXA Test',
+      // The app under test runs without Redis (in-process presence and fan-out);
+      // presence-store.test.ts exercises the Redis store directly against TEST_REDIS_URL.
+      REDIS_URL: '',
+      TEST_REDIS_URL: process.env.REDIS_URL ?? '',
+      TEST_REDIS_TLS_CA_FILE: process.env.REDIS_TLS_CA_FILE ?? '',
     },
   },
 });

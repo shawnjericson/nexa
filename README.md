@@ -9,18 +9,20 @@ platform.
 
 ## Stack
 
-| Layer         | Technology                                       |
-| ------------- | ------------------------------------------------ |
-| Runtime       | Node.js 22, TypeScript                           |
-| HTTP          | Express 5                                        |
-| Database      | PostgreSQL 18 via Prisma 7 (TLS, pinned cert)    |
-| Logs / events | MongoDB 8 (audit + event log, see ADR-009)       |
-| Auth          | JWT access tokens (jose) + rotating refresh      |
-| Passwords     | bcrypt                                           |
-| Validation    | Zod 4                                            |
-| API docs      | OpenAPI 3 + Swagger UI                           |
-| Logging       | pino (JSON in production, pretty in development) |
-| Tests         | Vitest + Supertest against a real PostgreSQL     |
+| Layer            | Technology                                                          |
+| ---------------- | ------------------------------------------------------------------- |
+| Runtime          | Node.js 22, TypeScript                                              |
+| HTTP             | Express 5                                                           |
+| Database         | PostgreSQL 18 via Prisma 7 (TLS, pinned cert)                       |
+| Realtime         | Socket.IO 4 + Redis adapter (multi-instance fan-out)                |
+| Cache / presence | Redis 8 (TLS, ACL user limited to `nexa:*`)                         |
+| Logs / events    | MongoDB 8 (audit + event log, see ADR-009)                          |
+| Auth             | JWT access tokens (jose) + rotating refresh                         |
+| Passwords        | bcrypt                                                              |
+| Validation       | Zod 4                                                               |
+| API docs         | OpenAPI 3 + Swagger UI                                              |
+| Logging          | pino (JSON in production, pretty in development)                    |
+| Tests            | Vitest + Supertest + socket.io-client against real PostgreSQL/Redis |
 
 ## Repository layout
 
@@ -30,11 +32,12 @@ apps/
     prisma/               schema + migrations
     src/
       config/             environment validation
-      infrastructure/     database, logger
+      infrastructure/     database, redis, websocket (realtime hub), logger
       modules/
         identity/         register, login, tokens, sessions, profiles
         organization/     organizations, memberships, roles & permissions, org context
-        social/           posts, comments, feed
+        social/           posts, comments, reactions, feed
+        communication/    direct/group/channel chat, messages, read state, presence, sockets
       shared/             errors, HTTP helpers, domain events
       app.ts              composition root + Express pipeline
       server.ts           process entry point
@@ -159,6 +162,43 @@ immediately.
   email can accept it, exactly once.
 - **Departments**: leaving the organization removes you from its departments automatically.
 - See ADR-014.
+
+## Chat & realtime
+
+| Method         | Endpoint                                                  | Notes                                           |
+| -------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| GET            | `/api/v1/conversations?limit&cursor`                      | Your conversations, latest first, unread counts |
+| POST           | `/api/v1/conversations`                                   | `DIRECT` (idempotent), `GROUP`, `CHANNEL`       |
+| GET / PATCH    | `/api/v1/conversations/:id`                               | Members + read positions / rename, archive      |
+| POST           | `/api/v1/conversations/:id/members`                       | Add people (owners/admins) or join a channel    |
+| DELETE         | `/api/v1/conversations/:id/members/:userId`               | Leave, or remove someone (owners/admins)        |
+| GET            | `/api/v1/conversations/:id/messages?before_seq/after_seq` | History; `after_seq` catches up after reconnect |
+| POST           | `/api/v1/conversations/:id/messages`                      | Send with a `client_message_id` (retry-safe)    |
+| PATCH / DELETE | `/api/v1/conversations/:id/messages/:messageId`           | Edit (sender) / delete, leaving a tombstone     |
+| POST           | `/api/v1/conversations/:id/read`                          | Read position, never moves backwards            |
+| GET            | `/api/v1/channels`                                        | Browse the organization's channels              |
+| GET            | `/api/v1/presence?user_ids=a,b`                           | Online status                                   |
+
+Realtime uses Socket.IO with the same access token and organization rules as the REST API:
+
+```js
+const socket = io('http://localhost:4000', { auth: { token: accessToken, organization_id } });
+socket.on('message.created', (message) => render(message));
+socket.emit('typing.start', { conversation_id }, (ack) => console.log(ack)); // { ok: true }
+```
+
+| Direction       | Events                                                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| server → client | `message.created`, `message.updated`, `message.deleted`, `message.read`, `typing.started`, `typing.stopped`, `presence.updated`, `conversation.members_changed` |
+| client → server | `typing.start`, `typing.stop` (acknowledged with `{ ok }`)                                                                                                      |
+
+- Messages are ordered by a server-assigned, gap-free `seq`. Resending the same
+  `client_message_id` returns the original message instead of a duplicate.
+- After a reconnect, fetch `messages?after_seq=<last seq you have>`.
+- Direct and group conversations are private: organization admins get 404 like everyone else.
+  Leaving the organization removes you from every conversation.
+- Presence counts connections, so closing the laptop while the phone is connected keeps you online.
+- Without `REDIS_URL` the API runs as a single instance with in-process presence. See ADR-015.
 
 ## Scripts
 

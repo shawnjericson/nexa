@@ -38,13 +38,15 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  refreshTokens       RefreshToken[]
-  memberships         OrganizationMember[]
-  posts               Post[]
-  comments            Comment[]
-  reactions           Reaction[]
-  invitationsSent     Invitation[]         @relation("InvitationsSent")
-  invitationsAccepted Invitation[]         @relation("InvitationsAccepted")
+  refreshTokens        RefreshToken[]
+  memberships          OrganizationMember[]
+  posts                Post[]
+  comments             Comment[]
+  reactions            Reaction[]
+  invitationsSent      Invitation[]         @relation("InvitationsSent")
+  invitationsAccepted  Invitation[]         @relation("InvitationsAccepted")
+  conversationsCreated Conversation[]       @relation("ConversationsCreated")
+  messages             Message[]
 
   @@map("users")
 }
@@ -88,11 +90,12 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  roles       Role[]
-  members     OrganizationMember[]
-  invitations Invitation[]
-  departments Department[]
-  posts       Post[]
+  roles         Role[]
+  members       OrganizationMember[]
+  invitations   Invitation[]
+  departments   Department[]
+  posts         Post[]
+  conversations Conversation[]
 
   @@map("organizations")
 }
@@ -150,12 +153,13 @@ model OrganizationMember {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User               @relation(fields: [userId], references: [id])
+  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id])
   // Composite FK: the database itself rejects a role from another organization. NO ACTION (checked
   // at the end of the statement) lets an organization delete cascade through roles and members.
-  role         Role               @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: NoAction)
-  departments  DepartmentMember[]
+  role          Role                 @relation(fields: [roleId, organizationId], references: [id, organizationId], onDelete: NoAction)
+  departments   DepartmentMember[]
+  conversations ConversationMember[]
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -310,4 +314,105 @@ model Reaction {
   @@index([postId, type])
   @@index([userId])
   @@map("reactions")
+}
+
+// ─── Communication ─────────────────────────────────────────────────────────
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  CHANNEL
+}
+
+enum ConversationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+/// DIRECT, GROUP or CHANNEL - a channel is a conversation (spec 9.4). Messages are ordered by a
+/// per-conversation sequence assigned under a lock on this row (ADR-015).
+model Conversation {
+  id             String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  type           ConversationType
+  name           String?          @db.VarChar(100)
+  description    String?          @db.VarChar(500)
+  avatarUrl      String?          @map("avatar_url") @db.VarChar(2048)
+  /// Channels only, unique per organization.
+  slug           String?          @db.Citext
+  /// DIRECT only: both user ids sorted, so a pair of people has at most one conversation.
+  directKey      String?          @map("direct_key") @db.VarChar(80)
+  createdById    String           @map("created_by_id") @db.Uuid
+  lastMessageSeq Int              @default(0) @map("last_message_seq")
+  lastMessageAt  DateTime?        @map("last_message_at") @db.Timestamptz(3)
+  /// Orders conversation lists: creation time until the first message, then the last message.
+  lastActivityAt DateTime         @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  archivedAt     DateTime?        @map("archived_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("ConversationsCreated", fields: [createdById], references: [id])
+  members      ConversationMember[]
+  messages     Message[]
+
+  @@unique([organizationId, slug])
+  @@unique([organizationId, directKey])
+  @@unique([id, organizationId])
+  @@index([organizationId, type])
+  @@map("conversations")
+}
+
+/// Membership is anchored in the organization: leaving the organization removes the person from
+/// every conversation (risk register 10), while their messages stay in the history.
+model ConversationMember {
+  conversationId String           @map("conversation_id") @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           ConversationRole @default(MEMBER)
+  /// Only ever moves forward (risk register 9.6).
+  lastReadSeq    Int              @default(0) @map("last_read_seq")
+  mutedUntil     DateTime?        @map("muted_until") @db.Timestamptz(3)
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  conversation Conversation       @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([organizationId, userId])
+  @@map("conversation_members")
+}
+
+/// seq is gap-free and server-assigned (risk register 9.2); client_message_id makes retries
+/// idempotent (9.1). Deleted messages stay as tombstones (9.7).
+model Message {
+  id              String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId  String      @map("organization_id") @db.Uuid
+  conversationId  String      @map("conversation_id") @db.Uuid
+  senderId        String      @map("sender_id") @db.Uuid
+  seq             Int
+  clientMessageId String?     @map("client_message_id") @db.VarChar(64)
+  type            MessageType @default(TEXT)
+  content         String
+  replyToId       String?     @map("reply_to_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  editedAt        DateTime?   @map("edited_at") @db.Timestamptz(3)
+  deletedAt       DateTime?   @map("deleted_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]    @relation("MessageReplies")
+
+  @@unique([conversationId, seq])
+  @@unique([conversationId, senderId, clientMessageId])
+  @@map("messages")
 }
