@@ -15,6 +15,11 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   return <textarea className={cn(FIELD, 'min-h-20 resize-y py-2', className)} {...props} />;
 }
 
+/** A native select: the platform's own picker is the most accessible one on every device. */
+export function Select({ className, ...props }: ComponentProps<'select'>) {
+  return <select className={cn(FIELD, 'h-9', className)} {...props} />;
+}
+
 /** A labelled input with hint and error text wired up for assistive technology. */
 export function TextField({
   label,

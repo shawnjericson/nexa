@@ -16,6 +16,7 @@ import { LOCALE_NAMES, LOCALES, type Locale } from '@/i18n/config';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
 import { cn } from '@/lib/cn';
+import { isHttpUrl } from '@/lib/url';
 import { useChangePassword, useUpdateMe, type UpdateMeInput } from './queries';
 
 type Me = components['schemas']['Me'];
@@ -24,15 +25,6 @@ type Me = components['schemas']['Me'];
 const USERNAME = /^[a-zA-Z0-9._-]{3,30}$/;
 const MIN_PASSWORD = 6;
 const MAX_PASSWORD_BYTES = 72;
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 function Section({
   id,

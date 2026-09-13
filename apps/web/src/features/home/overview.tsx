@@ -102,7 +102,7 @@ function PostPreview({ post }: { post: Post }) {
 export function HomeOverview() {
   const { t, tn, formatDate } = useI18n();
   const { data: me } = useMe();
-  const { isManager } = useOrganization();
+  const { canAdminister } = useOrganization();
   const orgKey = useOrgKey();
   const feed = useFeed();
   const conversations = useQuery({
@@ -224,8 +224,9 @@ export function HomeOverview() {
             <BriefingRow href="/channels?create=1" icon={Plus} active={false}>
               {t('commands.createChannel')}
             </BriefingRow>
-            {isManager && (
-              <BriefingRow href="/admin/members?invite=1" icon={UserPlus} active={false}>
+            {/* Everyone who can open the admin area can invite (member.invite). */}
+            {canAdminister && (
+              <BriefingRow href="/admin?tab=invitations&invite=1" icon={UserPlus} active={false}>
                 {t('home.invitePeople')}
               </BriefingRow>
             )}

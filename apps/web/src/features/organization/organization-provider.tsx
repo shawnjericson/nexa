@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { useI18n } from '@/i18n/provider';
 import { api, setActiveOrganizationId } from '@/lib/api/client';
+import { canAdminister } from '@/lib/permissions';
 
 const STORAGE_KEY = 'nexa.activeOrganizationId';
 
@@ -23,6 +24,8 @@ interface OrganizationContextValue {
   switchTo(id: string): void;
   /** Management UI hints only; the API enforces every permission. */
   isManager: boolean;
+  /** Whether the admin area has something for this person (members, invitations, audit…). */
+  canAdminister: boolean;
 }
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
@@ -79,6 +82,7 @@ export function OrganizationProvider({
             organizations,
             switchTo,
             isManager: organization.role === 'OWNER' || organization.role === 'ADMIN',
+            canAdminister: canAdminister(organization.role),
           }
         : null,
     [organization, organizations, switchTo],

@@ -90,7 +90,7 @@ export function CommandPalette() {
   const { t } = i18n;
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
-  const { isManager } = useOrganization();
+  const { canAdminister } = useOrganization();
   const orgKey = useOrgKey();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -132,7 +132,7 @@ export function CommandPalette() {
   const pages = [
     ...NAV_SECTIONS.flatMap((section) => section.items),
     SETTINGS_ITEM,
-    ...(isManager ? [ADMIN_ITEM] : []),
+    ...(canAdminister ? [ADMIN_ITEM] : []),
   ];
 
   const query = search.trim();

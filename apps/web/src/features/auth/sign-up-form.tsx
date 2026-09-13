@@ -2,23 +2,26 @@
 
 import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/input';
 import { useI18n } from '@/i18n/provider';
 import { describeError, fieldErrors } from '@/lib/api/errors';
 import { signUp } from '@/lib/auth/session';
+import { safeNextPath } from './safe-next-path';
 
 export function SignUpForm() {
   const i18n = useI18n();
   const { t } = i18n;
   const router = useRouter();
+  // Where to go afterwards, e.g. back to an invitation link that sent them here.
+  const next = safeNextPath(useSearchParams().get('next'));
   const [form, setForm] = useState({ display_name: '', username: '', email: '', password: '' });
 
   const mutation = useMutation({
     mutationFn: () => signUp(form),
-    onSuccess: () => router.replace('/home'),
+    onSuccess: () => router.replace(next),
   });
   const errors = fieldErrors(mutation.error);
   const hasFieldErrors = Object.keys(errors).length > 0;
@@ -81,7 +84,10 @@ export function SignUpForm() {
 
       <p className="mt-6 text-sm text-muted">
         {t('auth.haveAccount')}{' '}
-        <Link href="/login" className="font-medium text-accent hover:underline">
+        <Link
+          href={`/login?next=${encodeURIComponent(next)}`}
+          className="font-medium text-accent hover:underline"
+        >
           {t('auth.signIn')}
         </Link>
       </p>

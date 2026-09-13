@@ -125,7 +125,7 @@ function PinnedChannels({ pathname }: { pathname: string }) {
 export function Sidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
-  const { isManager } = useOrganization();
+  const { canAdminister } = useOrganization();
 
   return (
     <aside className="hidden w-16 shrink-0 flex-col border-r border-border bg-sidebar md:flex lg:w-60">
@@ -157,7 +157,7 @@ export function Sidebar() {
       </nav>
 
       <div className="flex flex-col gap-0.5 border-t border-border p-3">
-        {isManager && <NavLink item={ADMIN_ITEM} pathname={pathname} />}
+        {canAdminister && <NavLink item={ADMIN_ITEM} pathname={pathname} />}
         <NavLink item={SETTINGS_ITEM} pathname={pathname} />
       </div>
     </aside>

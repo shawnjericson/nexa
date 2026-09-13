@@ -66,7 +66,11 @@ export function SignInForm() {
 
       <p className="mt-6 text-sm text-muted">
         {t('auth.noAccount')}{' '}
-        <Link href="/register" className="font-medium text-accent hover:underline">
+        {/* Keeps ?next= so an invitation link still works after signing up first. */}
+        <Link
+          href={`/register?next=${encodeURIComponent(next)}`}
+          className="font-medium text-accent hover:underline"
+        >
           {t('auth.signUp')}
         </Link>
       </p>
