@@ -39,6 +39,7 @@ apps/
         social/           posts, comments, reactions, feed
         communication/    direct/group/channel chat, messages, read state, presence, sockets
         file/             uploads to object storage, content checks, attachments, cleanup
+        search/           full-text search across modules, each enforcing its own visibility
         notification/     in-app notifications from domain events (coalesced, realtime)
         administration/   audit log (MongoDB, PostgreSQL fallback queue)
       shared/             errors, HTTP helpers, domain events
@@ -264,6 +265,24 @@ await api.post('/api/v1/posts', { content: 'Team outing', attachment_ids: [data.
 - Uploading from a browser needs a CORS rule on the bucket allowing `PUT` from the web app's
   origin.
 - Without `S3_BUCKET` uploads are disabled. See ADR-017.
+
+## Search
+
+| Method | Endpoint                                  | Notes                                                  |
+| ------ | ----------------------------------------- | ------------------------------------------------------ |
+| GET    | `/api/v1/search?q=&limit=`                | The best few people, posts, conversations and messages |
+| GET    | `/api/v1/search/people?q=&limit=&cursor=` | Members of your organization, by name or username      |
+| GET    | `/api/v1/search/posts?q=&limit=&cursor=`  | Posts of your organization                             |
+| GET    | `/api/v1/search/conversations?q=&...`     | Channels, and groups you are in                        |
+| GET    | `/api/v1/search/messages?q=&...`          | Messages of conversations you are in                   |
+
+- Search ignores accents and case, and every word matches as a prefix: `bao cao` finds
+  "Báo cáo", and `phat` finds "phát triển".
+- You only find what you can already see. Direct and group messages stay private, even from
+  organization admins.
+- Posts and messages come with a `snippet` and the `highlights` to mark in it.
+- Results are PostgreSQL full-text search over generated columns, so new content is searchable
+  immediately. See ADR-018.
 
 ## Scripts
 

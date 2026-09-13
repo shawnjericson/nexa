@@ -8,6 +8,7 @@ import type { ProfileVisibility, UserDirectory } from './domain/ports';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
 import { JwtAccessTokenService } from './infrastructure/jwt-access-token.service';
 import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-token.repository';
+import { PrismaUserSearch } from './infrastructure/prisma-user-search';
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository';
 import { createAuthRouter } from './presentation/auth.routes';
 import './presentation/openapi';
@@ -53,6 +54,7 @@ export function createIdentityModule(deps: {
   const { prisma, events, profileVisibility, config } = deps;
 
   const users = new PrismaUserRepository(prisma);
+  const userSearch = new PrismaUserSearch(prisma);
   const accessTokens = new JwtAccessTokenService(
     config.JWT_ACCESS_SECRET,
     config.JWT_ACCESS_TTL_SECONDS,
@@ -85,6 +87,7 @@ export function createIdentityModule(deps: {
         return new Map(summaries.map((summary) => [summary.id, summary]));
       },
       findByEmail: (email) => users.findSummaryByEmail(email),
+      search: (query, options) => userSearch.search(query, options),
     },
   };
 }

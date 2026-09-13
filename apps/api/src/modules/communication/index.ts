@@ -9,7 +9,9 @@ import type { Authenticate, UserDirectory } from '../identity';
 import type { OrganizationDirectory, ResolveOrganizationContext } from '../organization';
 import { ConversationService } from './application/conversation.service';
 import { MessageService } from './application/message.service';
+import type { ChatSearch } from './domain/search';
 import { MemoryPresenceStore } from './infrastructure/memory-presence.store';
+import { PrismaChatSearch } from './infrastructure/prisma-chat-search';
 import { PrismaConversationRepository } from './infrastructure/prisma-conversation.repository';
 import { PrismaMessageRepository } from './infrastructure/prisma-message.repository';
 import { RedisPresenceStore } from './infrastructure/redis-presence.store';
@@ -27,10 +29,13 @@ export {
   type MessageCreatedEvent,
   type MessageDeletedEvent,
 } from './domain/events';
+export type { ChatSearch, ConversationSearchHit, MessageSearchHit } from './domain/search';
 
 export interface CommunicationModule {
   /** Chat REST endpoints, mounted under /api/v1. */
   router: Router;
+  /** Conversation and message search for the Search module, with chat's access rules. */
+  search: ChatSearch;
 }
 
 export function createCommunicationModule(deps: {
@@ -87,5 +92,6 @@ export function createCommunicationModule(deps: {
       files: deps.files,
       guard: deps.guard,
     }),
+    search: new PrismaChatSearch(deps.prisma),
   };
 }

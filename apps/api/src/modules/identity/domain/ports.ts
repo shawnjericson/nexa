@@ -1,3 +1,4 @@
+import type { SearchPage, SearchQuery, SearchWindow } from '../../../shared/search/search-query';
 import type { AuthContext } from './auth-context';
 import type { User, UserStatus } from './user';
 
@@ -29,6 +30,14 @@ export interface UserSummary {
 export interface UserDirectory {
   getSummaries(ids: readonly string[]): Promise<ReadonlyMap<string, UserSummary>>;
   findByEmail(email: string): Promise<UserSummary | null>;
+  /**
+   * Active people among `withinIds` (e.g. an organization's members, decided by the caller)
+   * whose display name or username matches, best match first.
+   */
+  search(
+    query: SearchQuery,
+    options: SearchWindow & { withinIds: readonly string[] },
+  ): Promise<SearchPage<UserSummary>>;
 }
 
 export interface UserRepository {

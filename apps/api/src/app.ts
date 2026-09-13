@@ -15,6 +15,7 @@ import { createFileModule } from './modules/file';
 import { createIdentityModule } from './modules/identity';
 import { createNotificationModule } from './modules/notification';
 import { createOrganizationModule } from './modules/organization';
+import { createSearchModule } from './modules/search';
 import { createSocialModule } from './modules/social';
 import { InProcessEventBus } from './shared/events/event-bus';
 import { docsRouter } from './shared/http/docs.routes';
@@ -106,6 +107,13 @@ export function createApp({
     guard,
     backgroundJobs,
   });
+  const search = createSearchModule({
+    users,
+    directory: organization.directory,
+    posts: social.search,
+    chat: communication.search,
+    guard,
+  });
   const organizationRouter = organization.createRouter({
     requireAuth: identity.requireAuth,
     users,
@@ -131,6 +139,7 @@ export function createApp({
   v1.use(social.v1);
   v1.use(communication.router);
   v1.use(files.router);
+  v1.use(search.router);
   v1.use(notification.router);
   v1.use(administration.router);
   app.use('/api/v1', v1);
