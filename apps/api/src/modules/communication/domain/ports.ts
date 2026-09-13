@@ -87,6 +87,8 @@ export interface NewMessage {
   type: MessageType;
   content: string;
   replyToId: string | null;
+  /** Verified by the File module beforehand; stored in the same transaction as the message. */
+  attachmentIds: string[];
 }
 
 export interface MessageRepository {

@@ -5,6 +5,7 @@ import { checkDatabase, prisma } from './infrastructure/database/prisma';
 import { logger } from './infrastructure/logger/logger';
 import { mongoClient, mongoDb } from './infrastructure/mongo/mongo';
 import { checkRedis, redis } from './infrastructure/redis/redis';
+import { objectStorage } from './infrastructure/storage/storage';
 import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
 
 const realtime = new RealtimeHub();
@@ -12,9 +13,11 @@ const app = createApp({
   prisma,
   redis,
   mongo: mongoDb,
+  storage: objectStorage,
   realtime,
   backgroundJobs: true,
-  // MongoDB is not a readiness dependency: when it is down, audit entries queue in PostgreSQL.
+  // MongoDB and object storage are not readiness dependencies: audit entries queue in PostgreSQL,
+  // and uploads answer 503 while storage is down.
   readinessChecks: { database: checkDatabase, ...(redis && { redis: checkRedis }) },
 });
 const server = createServer(app);
@@ -24,7 +27,9 @@ server.listen(env.PORT, () => {
   logger.info(
     `NEXA API listening on http://localhost:${env.PORT} (docs: /docs, realtime: ${
       redis ? 'Redis adapter' : 'single instance'
-    }, audit log: ${mongoDb ? 'MongoDB' : 'disabled'})`,
+    }, audit log: ${mongoDb ? 'MongoDB' : 'disabled'}, files: ${
+      objectStorage ? objectStorage.description : 'disabled'
+    })`,
   );
 });
 

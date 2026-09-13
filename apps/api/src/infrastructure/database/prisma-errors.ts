@@ -4,6 +4,11 @@ export function isUniqueViolation(err: unknown): err is Prisma.PrismaClientKnown
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
 
+/** A foreign key refused the write, e.g. deleting a row that is still referenced. */
+export function isForeignKeyViolation(err: unknown): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003';
+}
+
 /** The record targeted by an update/delete did not match (e.g. it was deleted concurrently). */
 export function isRecordNotFound(err: unknown): err is Prisma.PrismaClientKnownRequestError {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025';

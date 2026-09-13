@@ -13,13 +13,18 @@ const POST_SELECT = {
   visibility: true,
   createdAt: true,
   updatedAt: true,
+  attachments: { select: { fileId: true }, orderBy: { position: 'asc' } },
   _count: { select: { comments: { where: { deletedAt: null } } } },
 } satisfies Prisma.PostSelect;
 
 type PostRow = Prisma.PostGetPayload<{ select: typeof POST_SELECT }>;
 
-function toPost({ _count, ...row }: PostRow): Post {
-  return { ...row, commentCount: _count.comments };
+function toPost({ _count, attachments, ...row }: PostRow): Post {
+  return {
+    ...row,
+    commentCount: _count.comments,
+    attachmentIds: attachments.map((attachment) => attachment.fileId),
+  };
 }
 
 const NEWEST_FIRST = [
@@ -27,11 +32,25 @@ const NEWEST_FIRST = [
   { id: 'desc' },
 ] satisfies Prisma.PostOrderByWithRelationInput[];
 
+// Round trips to the database add up inside these transactions, so allow more than the defaults.
+const WRITE_TRANSACTION = { maxWait: 10_000, timeout: 20_000 };
+
+const attachmentRows = (organizationId: string, postId: string, fileIds: readonly string[]) =>
+  fileIds.map((fileId, position) => ({ organizationId, postId, fileId, position }));
+
 export class PrismaPostRepository implements PostRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(post: NewPost): Promise<Post> {
-    return toPost(await this.prisma.post.create({ data: post, select: POST_SELECT }));
+  create({ attachmentIds, ...post }: NewPost): Promise<Post> {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.post.create({ data: post, select: POST_SELECT });
+      if (attachmentIds.length > 0) {
+        await tx.postAttachment.createMany({
+          data: attachmentRows(post.organizationId, row.id, attachmentIds),
+        });
+      }
+      return { ...toPost(row), attachmentIds };
+    }, WRITE_TRANSACTION);
   }
 
   async findById(organizationId: string, id: string): Promise<Post | null> {
@@ -42,20 +61,36 @@ export class PrismaPostRepository implements PostRepository {
     return row && toPost(row);
   }
 
-  async update(organizationId: string, id: string, changes: PostChanges): Promise<Post | null> {
+  async update(
+    organizationId: string,
+    id: string,
+    { attachmentIds, ...changes }: PostChanges,
+  ): Promise<Post | null> {
     try {
-      const row = await this.prisma.post.update({
-        where: { id, organizationId, deletedAt: null },
-        data: changes,
-        select: POST_SELECT,
-      });
-      return toPost(row);
+      return await this.prisma.$transaction(async (tx) => {
+        // Throws "record not found" when the post was deleted meanwhile: deletion wins.
+        await tx.post.update({
+          where: { id, organizationId, deletedAt: null },
+          data: { ...changes, ...(attachmentIds && { updatedAt: new Date() }) },
+          select: { id: true },
+        });
+        if (attachmentIds) {
+          await tx.postAttachment.deleteMany({ where: { postId: id } });
+          if (attachmentIds.length > 0) {
+            await tx.postAttachment.createMany({
+              data: attachmentRows(organizationId, id, attachmentIds),
+            });
+          }
+        }
+        return toPost(await tx.post.findUniqueOrThrow({ where: { id }, select: POST_SELECT }));
+      }, WRITE_TRANSACTION);
     } catch (err) {
       if (isRecordNotFound(err)) return null;
       throw err;
     }
   }
 
+  /** Attachments stay with a deleted post, for moderation and audit (ADR-017). */
   async softDelete(organizationId: string, id: string, at: Date): Promise<boolean> {
     const { count } = await this.prisma.post.updateMany({
       where: { id, organizationId, deletedAt: null },

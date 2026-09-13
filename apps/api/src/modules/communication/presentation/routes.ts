@@ -3,11 +3,12 @@ import { createRateLimiter } from '../../../shared/http/rate-limit';
 import { ok, paginated } from '../../../shared/http/response';
 import { validate } from '../../../shared/http/validate';
 import { decodeKeyset, encodeKeyset } from '../../../shared/utils/cursor';
+import type { FileDirectory } from '../../file';
 import { requireAuthContext, type UserDirectory } from '../../identity';
 import { organizationContext } from '../../organization';
 import type { ConversationService } from '../application/conversation.service';
 import type { MessageService } from '../application/message.service';
-import type { Conversation } from '../domain/conversation';
+import type { Conversation, Message } from '../domain/conversation';
 import type { ChatActor } from '../domain/policies';
 import type { PresenceStore } from '../domain/ports';
 import {
@@ -46,10 +47,12 @@ export function createCommunicationRouter(deps: {
   messages: MessageService;
   presence: PresenceStore;
   users: UserDirectory;
+  /** Shows attachments; access follows conversation membership. */
+  files: FileDirectory;
   /** requireAuth + requireOrganization, applied per route so unknown paths still 404. */
   guard: RequestHandler[];
 }): Router {
-  const { conversations, messages, presence, users, guard } = deps;
+  const { conversations, messages, presence, users, files, guard } = deps;
   const createLimiter = createRateLimiter({ windowMs: 60_000, limit: 30 });
   const sendLimiter = createRateLimiter({ windowMs: 60_000, limit: 120 });
 
@@ -60,6 +63,20 @@ export function createCommunicationRouter(deps: {
   const paramsOf = <T>(req: Request) => req.params as T;
   const usersOf = (ids: Array<string | null | undefined>) =>
     users.getSummaries(ids.filter((id): id is string => Boolean(id)));
+  // Deleted messages show no attachments, so their files are not even looked up.
+  const filesOf = (actor: ChatActor, items: Array<Message | null | undefined>) =>
+    files.describe(
+      actor.organization.organizationId,
+      items.flatMap((message) => (message && !message.deletedAt ? message.attachmentIds : [])),
+    );
+
+  async function presentMessages(actor: ChatActor, items: Message[]) {
+    const [directory, attachments] = await Promise.all([
+      usersOf(items.map((message) => message.senderId)),
+      filesOf(actor, items),
+    ]);
+    return items.map((message) => toMessageResponse(message, directory, attachments));
+  }
 
   async function respondWithDetails(
     req: Request,
@@ -75,19 +92,24 @@ export function createCommunicationRouter(deps: {
   // ─── Conversations ─────────────────────────────────────────────────────
 
   const listConversations: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
     const query = req.query as unknown as ConversationListQueryInput;
     const cursor = query.cursor ? decodeKeyset(query.cursor) : undefined;
-    const page = await conversations.list(actorOf(req), {
+    const page = await conversations.list(actor, {
       limit: query.limit,
       after: cursor && { lastActivityAt: cursor.at, id: cursor.id },
     });
-    const directory = await usersOf(
-      page.items.flatMap((item) => [item.directPeerId, item.lastMessage?.senderId]),
-    );
+    const [directory, attachments] = await Promise.all([
+      usersOf(page.items.flatMap((item) => [item.directPeerId, item.lastMessage?.senderId])),
+      filesOf(
+        actor,
+        page.items.map((item) => item.lastMessage),
+      ),
+    ]);
     const last = page.items.at(-1)?.conversation;
     paginated(
       res,
-      page.items.map((item) => toConversationSummaryResponse(item, directory)),
+      page.items.map((item) => toConversationSummaryResponse(item, directory, attachments)),
       {
         next_cursor:
           page.hasMore && last ? encodeKeyset({ at: last.lastActivityAt, id: last.id }) : null,
@@ -147,50 +169,52 @@ export function createCommunicationRouter(deps: {
   // ─── Messages ──────────────────────────────────────────────────────────
 
   const history: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
     const query = req.query as unknown as HistoryQueryInput;
-    const page = await messages.history(actorOf(req), paramsOf<{ id: string }>(req).id, {
+    const page = await messages.history(actor, paramsOf<{ id: string }>(req).id, {
       beforeSeq: query.before_seq,
       afterSeq: query.after_seq,
       limit: query.limit,
     });
-    const directory = await usersOf(page.items.map((message) => message.senderId));
-    paginated(
-      res,
-      page.items.map((message) => toMessageResponse(message, directory)),
-      { has_more: page.hasMore, limit: query.limit },
-    );
+    paginated(res, await presentMessages(actor, page.items), {
+      has_more: page.hasMore,
+      limit: query.limit,
+    });
   };
 
   const sendMessage: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
     const body = req.body as SendMessageInput;
-    const { message, created } = await messages.send(
-      actorOf(req),
-      paramsOf<{ id: string }>(req).id,
-      {
-        content: body.content,
-        clientMessageId: body.client_message_id,
-        replyToId: body.reply_to_id,
-      },
-    );
+    const { message, created } = await messages.send(actor, paramsOf<{ id: string }>(req).id, {
+      content: body.content,
+      clientMessageId: body.client_message_id,
+      replyToId: body.reply_to_id,
+      attachmentIds: body.attachment_ids,
+    });
+    const [response] = await presentMessages(actor, [message]);
     // 201 for a new message, 200 when a retry returned the original one.
-    ok(res, toMessageResponse(message, await usersOf([message.senderId])), created ? 201 : 200);
+    ok(res, response, created ? 201 : 200);
   };
 
   const editMessage: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
     const { id, messageId } = paramsOf<{ id: string; messageId: string }>(req);
     const message = await messages.edit(
-      actorOf(req),
+      actor,
       id,
       messageId,
       (req.body as EditMessageInput).content,
     );
-    ok(res, toMessageResponse(message, await usersOf([message.senderId])));
+    const [response] = await presentMessages(actor, [message]);
+    ok(res, response);
   };
 
   const deleteMessage: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
     const { id, messageId } = paramsOf<{ id: string; messageId: string }>(req);
-    const message = await messages.delete(actorOf(req), id, messageId);
-    ok(res, toMessageResponse(message, await usersOf([message.senderId])));
+    const message = await messages.delete(actor, id, messageId);
+    const [response] = await presentMessages(actor, [message]);
+    ok(res, response);
   };
 
   const markRead: RequestHandler = async (req, res) => {

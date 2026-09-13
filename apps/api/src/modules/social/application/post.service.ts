@@ -1,5 +1,6 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import { excerpt } from '../../../shared/utils/excerpt';
+import type { FileDirectory } from '../../file';
 import type { Post, PostType } from '../domain/content';
 import {
   POST_CREATED,
@@ -16,16 +17,22 @@ export class PostService {
   private readonly now: () => Date;
 
   constructor(
-    private readonly deps: { posts: PostRepository; events: EventBus; now?: () => Date },
+    private readonly deps: {
+      posts: PostRepository;
+      files: FileDirectory;
+      events: EventBus;
+      now?: () => Date;
+    },
   ) {
     this.now = deps.now ?? (() => new Date());
   }
 
   async create(
     actor: Actor,
-    input: { content: string; imageUrl: string | null; type: PostType },
+    input: { content: string; imageUrl: string | null; type: PostType; attachmentIds: string[] },
   ): Promise<Post> {
     if (!canPublish(actor, input.type)) throw SocialErrors.announcementForbidden();
+    await this.requireAttachable(actor, input.attachmentIds);
 
     const post = await this.deps.posts.create({
       // The organization always comes from the resolved membership, never from the client.
@@ -35,6 +42,7 @@ export class PostService {
       imageUrl: input.imageUrl,
       type: input.type,
       visibility: 'ORGANIZATION',
+      attachmentIds: input.attachmentIds,
     });
 
     const event: PostCreatedEvent = createEvent(POST_CREATED, {
@@ -56,6 +64,8 @@ export class PostService {
   async update(actor: Actor, id: string, changes: PostChanges): Promise<Post> {
     const post = await this.get(actor, id);
     if (!canEditPost(actor, post)) throw SocialErrors.postEditForbidden();
+    // Only the author edits, and every attachment of the post is one of their own uploads.
+    if (changes.attachmentIds) await this.requireAttachable(actor, changes.attachmentIds);
 
     // If the post was deleted between the check and the write, deletion wins (risk register 7.1).
     const updated = await this.deps.posts.update(actor.organization.organizationId, id, changes);
@@ -103,5 +113,12 @@ export class PostService {
       take: options.limit,
     });
     return { items, total, page: options.page, limit: options.limit };
+  }
+
+  private async requireAttachable(actor: Actor, attachmentIds: readonly string[]): Promise<void> {
+    await this.deps.files.requireAttachable(
+      { organizationId: actor.organization.organizationId, userId: actor.userId },
+      attachmentIds,
+    );
   }
 }

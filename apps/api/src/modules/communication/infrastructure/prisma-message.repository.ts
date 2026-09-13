@@ -16,7 +16,14 @@ const MESSAGE_SELECT = {
   createdAt: true,
   editedAt: true,
   deletedAt: true,
+  attachments: { select: { fileId: true }, orderBy: { position: 'asc' } },
 } satisfies Prisma.MessageSelect;
+
+type MessageRow = Prisma.MessageGetPayload<{ select: typeof MESSAGE_SELECT }>;
+
+function toMessage({ attachments, ...row }: MessageRow): Message {
+  return { ...row, attachmentIds: attachments.map((attachment) => attachment.fileId) };
+}
 
 // Appends queue behind the conversation lock, so allow them more time than Prisma's defaults.
 const APPEND_TRANSACTION = { maxWait: 10_000, timeout: 20_000 };
@@ -24,7 +31,10 @@ const APPEND_TRANSACTION = { maxWait: 10_000, timeout: 20_000 };
 export class PrismaMessageRepository implements MessageRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  append(message: NewMessage, at: Date): Promise<{ message: Message; created: boolean }> {
+  append(
+    { attachmentIds, ...message }: NewMessage,
+    at: Date,
+  ): Promise<{ message: Message; created: boolean }> {
     const { conversationId, senderId, clientMessageId } = message;
     return this.prisma.$transaction(async (tx) => {
       // One writer per conversation at a time: this makes seq gap-free and the duplicate check
@@ -37,7 +47,7 @@ export class PrismaMessageRepository implements MessageRepository {
         },
         select: MESSAGE_SELECT,
       });
-      if (existing) return { message: existing, created: false };
+      if (existing) return { message: toMessage(existing), created: false };
 
       const [next] = await tx.$queryRaw<Array<{ seq: number }>>`
         UPDATE conversations
@@ -52,28 +62,40 @@ export class PrismaMessageRepository implements MessageRepository {
         data: { ...message, seq: next.seq, createdAt: at },
         select: MESSAGE_SELECT,
       });
+      if (attachmentIds.length > 0) {
+        await tx.messageAttachment.createMany({
+          data: attachmentIds.map((fileId, position) => ({
+            organizationId: message.organizationId,
+            messageId: created.id,
+            fileId,
+            position,
+          })),
+        });
+      }
       // The sender has read their own message.
       await tx.$executeRaw`
         UPDATE conversation_members
            SET last_read_seq = GREATEST(last_read_seq, ${next.seq}::int)
          WHERE conversation_id = ${conversationId}::uuid AND user_id = ${senderId}::uuid`;
-      return { message: created, created: true };
+      return { message: { ...toMessage(created), attachmentIds }, created: true };
     }, APPEND_TRANSACTION);
   }
 
-  findById(conversationId: string, id: string): Promise<Message | null> {
-    return this.prisma.message.findFirst({
+  async findById(conversationId: string, id: string): Promise<Message | null> {
+    const row = await this.prisma.message.findFirst({
       where: { id, conversationId },
       select: MESSAGE_SELECT,
     });
+    return row && toMessage(row);
   }
 
-  findBySeqs(positions: Array<{ conversationId: string; seq: number }>): Promise<Message[]> {
-    if (positions.length === 0) return Promise.resolve([]);
-    return this.prisma.message.findMany({
+  async findBySeqs(positions: Array<{ conversationId: string; seq: number }>): Promise<Message[]> {
+    if (positions.length === 0) return [];
+    const rows = await this.prisma.message.findMany({
       where: { OR: positions.map(({ conversationId, seq }) => ({ conversationId, seq })) },
       select: MESSAGE_SELECT,
     });
+    return rows.map(toMessage);
   }
 
   async list(
@@ -88,7 +110,7 @@ export class PrismaMessageRepository implements MessageRepository {
         take: limit + 1,
         select: MESSAGE_SELECT,
       });
-      return { items: rows.slice(0, limit), hasMore: rows.length > limit };
+      return { items: rows.slice(0, limit).map(toMessage), hasMore: rows.length > limit };
     }
 
     // Scrolling back: the newest page (or the page before beforeSeq), returned oldest first.
@@ -98,7 +120,7 @@ export class PrismaMessageRepository implements MessageRepository {
       take: limit + 1,
       select: MESSAGE_SELECT,
     });
-    return { items: rows.slice(0, limit).reverse(), hasMore: rows.length > limit };
+    return { items: rows.slice(0, limit).reverse().map(toMessage), hasMore: rows.length > limit };
   }
 
   async edit(
@@ -108,24 +130,33 @@ export class PrismaMessageRepository implements MessageRepository {
     at: Date,
   ): Promise<Message | null> {
     try {
-      return await this.prisma.message.update({
-        where: { id, conversationId, deletedAt: null },
-        data: { content, editedAt: at },
-        select: MESSAGE_SELECT,
-      });
+      return toMessage(
+        await this.prisma.message.update({
+          where: { id, conversationId, deletedAt: null },
+          data: { content, editedAt: at },
+          select: MESSAGE_SELECT,
+        }),
+      );
     } catch (err) {
       if (isRecordNotFound(err)) return null;
       throw err;
     }
   }
 
-  /** The row stays as a tombstone; the text itself is erased. */
+  /**
+   * The row stays as a tombstone; its text and attachments are erased. The files then belong to
+   * nothing and are purged by the File module (ADR-017).
+   */
   async softDelete(conversationId: string, id: string, at: Date): Promise<Message | null> {
     try {
-      return await this.prisma.message.update({
-        where: { id, conversationId, deletedAt: null },
-        data: { deletedAt: at, content: '' },
-        select: MESSAGE_SELECT,
+      return await this.prisma.$transaction(async (tx) => {
+        const row = await tx.message.update({
+          where: { id, conversationId, deletedAt: null },
+          data: { deletedAt: at, content: '' },
+          select: MESSAGE_SELECT,
+        });
+        await tx.messageAttachment.deleteMany({ where: { messageId: id } });
+        return { ...toMessage(row), attachmentIds: [] };
       });
     } catch (err) {
       if (isRecordNotFound(err)) return null;

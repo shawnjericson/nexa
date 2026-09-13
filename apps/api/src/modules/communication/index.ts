@@ -4,6 +4,7 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import { logger } from '../../infrastructure/logger/logger';
 import type { RealtimeHub } from '../../infrastructure/websocket/realtime-hub';
 import type { EventBus } from '../../shared/events/event-bus';
+import type { FileDirectory } from '../file';
 import type { Authenticate, UserDirectory } from '../identity';
 import type { OrganizationDirectory, ResolveOrganizationContext } from '../organization';
 import { ConversationService } from './application/conversation.service';
@@ -40,6 +41,8 @@ export function createCommunicationModule(deps: {
   redis: Redis | null;
   users: UserDirectory;
   directory: OrganizationDirectory;
+  /** The File module's contract, used to attach and show files. */
+  files: FileDirectory;
   authenticate: Authenticate;
   resolveContext: ResolveOrganizationContext;
   /** requireAuth + requireOrganization. */
@@ -48,7 +51,7 @@ export function createCommunicationModule(deps: {
   const conversationRepository = new PrismaConversationRepository(deps.prisma);
   const messageRepository = new PrismaMessageRepository(deps.prisma);
   const presence = deps.redis ? new RedisPresenceStore(deps.redis) : new MemoryPresenceStore();
-  const realtime = createChatRealtime({ hub: deps.hub, users: deps.users });
+  const realtime = createChatRealtime({ hub: deps.hub, users: deps.users, files: deps.files });
 
   const conversations = new ConversationService({
     conversations: conversationRepository,
@@ -61,6 +64,7 @@ export function createCommunicationModule(deps: {
     conversationService: conversations,
     conversations: conversationRepository,
     messages: messageRepository,
+    files: deps.files,
     realtime,
     events: deps.events,
   });
@@ -80,6 +84,7 @@ export function createCommunicationModule(deps: {
       messages,
       presence,
       users: deps.users,
+      files: deps.files,
       guard: deps.guard,
     }),
   };

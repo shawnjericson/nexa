@@ -43,6 +43,18 @@ export default defineConfig({
       MONGODB_URI: '',
       TEST_MONGODB_URI: process.env.MONGODB_URI ?? '',
       MONGODB_AUDIT_COLLECTION: 'test_audit_logs',
+      // And without object storage: file tests pass an in-memory store, and
+      // object-storage.test.ts uploads real objects to the bucket in TEST_S3_BUCKET.
+      S3_ENDPOINT: '',
+      S3_BUCKET: '',
+      S3_ACCESS_KEY_ID: '',
+      S3_SECRET_ACCESS_KEY: '',
+      TEST_S3_ENDPOINT: process.env.S3_ENDPOINT ?? '',
+      TEST_S3_REGION: process.env.S3_REGION ?? 'auto',
+      TEST_S3_BUCKET: process.env.TEST_S3_BUCKET ?? '',
+      TEST_S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? '',
+      TEST_S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? '',
+      FILE_MAX_PENDING_UPLOADS: '5',
     },
   },
 });

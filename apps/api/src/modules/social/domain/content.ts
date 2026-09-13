@@ -16,6 +16,8 @@ export interface Post {
   visibility: PostVisibility;
   /** Comments that are not deleted. */
   commentCount: number;
+  /** Attached files, in display order. */
+  attachmentIds: string[];
   createdAt: Date;
   updatedAt: Date;
 }

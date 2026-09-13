@@ -1,3 +1,4 @@
+import { toAttachmentsResponse, type FileView } from '../../file';
 import { toUserReference, type UserSummary } from '../../identity';
 import type { CursorPage } from '../application/pagination';
 import type { Comment, Post, ReactionSummary } from '../domain/content';
@@ -6,6 +7,7 @@ import { canDeleteComment, canDeletePost, canEditPost, type Actor } from '../dom
 export { toPagePagination } from '../../../shared/http/pagination';
 
 type Authors = ReadonlyMap<string, UserSummary>;
+type Files = ReadonlyMap<string, FileView>;
 
 export function toReactionsResponse(summary: ReactionSummary) {
   return {
@@ -20,6 +22,7 @@ export function toPostResponse(
   authors: Authors,
   reactions: ReactionSummary,
   actor: Actor,
+  files: Files,
 ) {
   return {
     id: post.id,
@@ -27,6 +30,7 @@ export function toPostResponse(
     author: toUserReference(authors.get(post.authorId)),
     content: post.content,
     image_url: post.imageUrl,
+    attachments: toAttachmentsResponse(post.attachmentIds, files),
     type: post.type,
     visibility: post.visibility,
     comment_count: post.commentCount,

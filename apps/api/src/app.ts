@@ -7,9 +7,11 @@ import { env } from './config/env';
 import type { PrismaClient } from './generated/prisma/client';
 import { logger } from './infrastructure/logger/logger';
 import { httpLogger } from './infrastructure/logger/http-logger';
+import type { ObjectStorage } from './infrastructure/storage/object-storage';
 import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
 import { createAdministrationModule, type AuditDocument } from './modules/administration';
 import { createCommunicationModule } from './modules/communication';
+import { createFileModule } from './modules/file';
 import { createIdentityModule } from './modules/identity';
 import { createNotificationModule } from './modules/notification';
 import { createOrganizationModule } from './modules/organization';
@@ -27,6 +29,8 @@ export interface AppDependencies {
   redis?: Redis | null;
   /** Optional: the audit log lives in MongoDB; without it the audit log is disabled. */
   mongo?: Db | null;
+  /** Optional: files live in S3-compatible object storage; without it uploads are disabled. */
+  storage?: ObjectStorage | null;
   /** Socket.IO hub; server.ts attaches it to the HTTP server. Emits are no-ops until then. */
   realtime?: RealtimeHub;
   /** Periodic jobs such as retrying queued audit entries (the server enables them). */
@@ -43,6 +47,7 @@ export function createApp({
   prisma,
   redis = null,
   mongo = null,
+  storage = null,
   realtime = new RealtimeHub(),
   backgroundJobs = false,
   readinessChecks = {},
@@ -58,7 +63,20 @@ export function createApp({
   const users = identity.userDirectory;
   const guard = [identity.requireAuth, organization.requireOrganization];
 
-  const social = createSocialModule({ prisma, events, authors: users, guard });
+  const files = createFileModule({
+    prisma,
+    storage,
+    policy: { maxBytes: env.FILE_MAX_BYTES, maxPendingUploads: env.FILE_MAX_PENDING_UPLOADS },
+    guard,
+    backgroundJobs,
+  });
+  const social = createSocialModule({
+    prisma,
+    events,
+    authors: users,
+    files: files.directory,
+    guard,
+  });
   const communication = createCommunicationModule({
     prisma,
     events,
@@ -66,6 +84,7 @@ export function createApp({
     redis,
     users,
     directory: organization.directory,
+    files: files.directory,
     authenticate: identity.authenticate,
     resolveContext: organization.resolveContext,
     guard,
@@ -111,6 +130,7 @@ export function createApp({
   v1.use(organizationRouter);
   v1.use(social.v1);
   v1.use(communication.router);
+  v1.use(files.router);
   v1.use(notification.router);
   v1.use(administration.router);
   app.use('/api/v1', v1);

@@ -53,6 +53,7 @@ const ERROR_DESCRIPTIONS: Record<number, string> = {
   404: 'Not found',
   409: 'Conflicts with existing data',
   413: 'Payload too large',
+  422: 'Well-formed but rejected, e.g. a file whose content is not its declared type',
   429: 'Too many requests',
   503: 'A dependency is unavailable',
 };

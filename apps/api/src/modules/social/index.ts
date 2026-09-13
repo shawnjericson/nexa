@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express';
 import type { PrismaClient } from '../../generated/prisma/client';
 import type { EventBus } from '../../shared/events/event-bus';
+import type { FileDirectory } from '../file';
 import type { UserDirectory } from '../identity';
 import { CommentService } from './application/comment.service';
 import { PostService } from './application/post.service';
@@ -30,6 +31,8 @@ export function createSocialModule(deps: {
   events: EventBus;
   /** Identity's public read contract, used to show authors. */
   authors: UserDirectory;
+  /** The File module's contract, used to attach and show files. */
+  files: FileDirectory;
   /** requireAuth + requireOrganization. */
   guard: RequestHandler[];
 }): SocialRouters {
@@ -38,10 +41,11 @@ export function createSocialModule(deps: {
   const reactions = new PrismaReactionRepository(deps.prisma);
 
   return createSocialRouters({
-    posts: new PostService({ posts, events: deps.events }),
+    posts: new PostService({ posts, files: deps.files, events: deps.events }),
     comments: new CommentService({ posts, comments, events: deps.events }),
     reactions: new ReactionService({ posts, reactions, events: deps.events }),
     authors: deps.authors,
+    files: deps.files,
     guard: deps.guard,
   });
 }

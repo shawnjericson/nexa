@@ -21,3 +21,4 @@ Every significant change to the architecture gets a new ADR here instead of sile
 | [014](014-role-hierarchy-invitations-departments.md) | Role hierarchy, last-owner guard, invitations, departments, reactions                       | Accepted                                                      |
 | [015](015-chat-and-realtime.md)                      | Chat model, server-assigned seq, idempotent sends, per-user fan-out, presence               | Accepted                                                      |
 | [016](016-notifications-and-audit-log.md)            | Notification rules and coalescing, idempotent consumers, audit log with PostgreSQL fallback | Accepted                                                      |
+| [017](017-files-and-object-storage.md)               | Cloudflare R2 via S3, presigned two-step uploads, content checks, attachments and cleanup   | Accepted                                                      |

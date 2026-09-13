@@ -1,7 +1,8 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import { excerpt } from '../../../shared/utils/excerpt';
+import type { FileDirectory, FileKind } from '../../file';
 import { ChatErrors } from '../domain/chat-errors';
-import type { Message } from '../domain/conversation';
+import type { Message, MessageType } from '../domain/conversation';
 import {
   MESSAGE_CREATED,
   MESSAGE_DELETED,
@@ -12,6 +13,12 @@ import { canDeleteMessage, canEditMessage, type ChatActor } from '../domain/poli
 import type { ChatRealtime, ConversationRepository, MessageRepository } from '../domain/ports';
 import type { ConversationService } from './conversation.service';
 
+/** IMAGE when every attachment is an image, FILE when any other file is attached. */
+function messageTypeOf(attachments: ReadonlyArray<{ kind: FileKind }>): MessageType {
+  if (attachments.length === 0) return 'TEXT';
+  return attachments.every((attachment) => attachment.kind === 'image') ? 'IMAGE' : 'FILE';
+}
+
 export class MessageService {
   private readonly now: () => Date;
 
@@ -20,6 +27,7 @@ export class MessageService {
       conversationService: ConversationService;
       conversations: ConversationRepository;
       messages: MessageRepository;
+      files: FileDirectory;
       realtime: ChatRealtime;
       events: EventBus;
       now?: () => Date;
@@ -35,7 +43,12 @@ export class MessageService {
   async send(
     actor: ChatActor,
     conversationId: string,
-    input: { content: string; clientMessageId: string; replyToId?: string },
+    input: {
+      content: string;
+      clientMessageId: string;
+      replyToId?: string;
+      attachmentIds: string[];
+    },
   ): Promise<{ message: Message; created: boolean }> {
     const { conversation } = await this.deps.conversationService.requireMember(
       actor,
@@ -45,6 +58,10 @@ export class MessageService {
     if (input.replyToId && !(await this.deps.messages.findById(conversation.id, input.replyToId))) {
       throw ChatErrors.replyTargetNotFound();
     }
+    const attachments = await this.deps.files.requireAttachable(
+      { organizationId: conversation.organizationId, userId: actor.userId },
+      input.attachmentIds,
+    );
 
     const result = await this.deps.messages.append(
       {
@@ -52,9 +69,10 @@ export class MessageService {
         conversationId: conversation.id,
         senderId: actor.userId,
         clientMessageId: input.clientMessageId,
-        type: 'TEXT',
+        type: messageTypeOf(attachments),
         content: input.content,
         replyToId: input.replyToId ?? null,
+        attachmentIds: attachments.map((attachment) => attachment.id),
       },
       this.now(),
     );
@@ -72,6 +90,7 @@ export class MessageService {
           seq: result.message.seq,
           recipient_ids: memberIds.filter((id) => id !== actor.userId),
           excerpt: excerpt(result.message.content),
+          attachment_count: result.message.attachmentIds.length,
         },
       });
       await this.deps.events.publish(event);

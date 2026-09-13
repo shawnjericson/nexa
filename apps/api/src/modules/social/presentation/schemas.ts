@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import '../../../shared/http/openapi';
+import { AttachmentIds, AttachmentResponse } from '../../file';
 import { UserReference } from '../../identity';
 import { REACTION_TYPES } from '../domain/content';
 
@@ -28,6 +29,7 @@ export const CreatePostBody = z
       .enum(['GENERAL', 'ANNOUNCEMENT'])
       .default('GENERAL')
       .openapi({ description: 'ANNOUNCEMENT requires the announcement.publish permission' }),
+    attachment_ids: AttachmentIds.default([]),
   })
   .openapi('CreatePostRequest');
 
@@ -35,10 +37,17 @@ export const UpdatePostBody = z
   .object({
     content: Content(10_000).optional(),
     image_url: ImageUrl.nullable().optional(),
+    attachment_ids: AttachmentIds.optional().openapi({
+      description: 'Replaces every attachment of the post',
+    }),
   })
-  .refine((body) => body.content !== undefined || body.image_url !== undefined, {
-    message: 'Provide content or image_url',
-  })
+  .refine(
+    (body) =>
+      body.content !== undefined ||
+      body.image_url !== undefined ||
+      body.attachment_ids !== undefined,
+    { message: 'Provide content, image_url or attachment_ids' },
+  )
   .openapi('UpdatePostRequest');
 
 export const CreateCommentBody = z
@@ -83,6 +92,7 @@ export const PostResponse = z
     author: UserReference.nullable(),
     content: z.string(),
     image_url: z.string().nullable(),
+    attachments: z.array(AttachmentResponse),
     type: z.enum(['GENERAL', 'ANNOUNCEMENT', 'EVENT', 'POLL']),
     visibility: z.enum(['ORGANIZATION', 'DEPARTMENT', 'CHANNEL']),
     comment_count: z.number().int(),

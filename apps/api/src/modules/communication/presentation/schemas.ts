@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import '../../../shared/http/openapi';
+import { AttachmentIds, AttachmentResponse } from '../../file';
 import { UserReference } from '../../identity';
 
 const Name = z.string().trim().min(1).max(100);
@@ -72,7 +73,10 @@ export const AddMembersBody = z
 
 export const SendMessageBody = z
   .object({
-    content: MessageContent.openapi({ example: 'Chào cả nhà!' }),
+    content: z.string().trim().max(4000).default('').openapi({
+      description: 'May be empty when the message carries attachments',
+      example: 'Chào cả nhà!',
+    }),
     client_message_id: z
       .string()
       .regex(
@@ -86,6 +90,11 @@ export const SendMessageBody = z
         example: '0f8fad5b-d9cb-469f-a165-70867728950e',
       }),
     reply_to_id: z.uuid().optional(),
+    attachment_ids: AttachmentIds.default([]),
+  })
+  .refine((body) => body.content.length > 0 || body.attachment_ids.length > 0, {
+    message: 'Provide content or attachment_ids',
+    path: ['content'],
   })
   .openapi('SendMessageRequest');
 
@@ -103,6 +112,9 @@ export const MessageResponse = z
     sender: UserReference.nullable(),
     type: z.enum(['TEXT', 'IMAGE', 'FILE', 'SYSTEM']),
     content: z.string().nullable().openapi({ description: 'null once the message is deleted' }),
+    attachments: z
+      .array(AttachmentResponse)
+      .openapi({ description: 'Empty once the message is deleted' }),
     reply_to_id: z.uuid().nullable(),
     client_message_id: z.string().nullable(),
     created_at: z.iso.datetime(),

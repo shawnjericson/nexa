@@ -32,12 +32,13 @@ apps/
     prisma/               schema + migrations
     src/
       config/             environment validation
-      infrastructure/     database, redis, mongo, websocket (realtime hub), logger
+      infrastructure/     database, redis, mongo, storage (S3/R2), websocket (realtime hub), logger
       modules/
         identity/         register, login, tokens, sessions, profiles
         organization/     organizations, memberships, roles & permissions, org context
         social/           posts, comments, reactions, feed
         communication/    direct/group/channel chat, messages, read state, presence, sockets
+        file/             uploads to object storage, content checks, attachments, cleanup
         notification/     in-app notifications from domain events (coalesced, realtime)
         administration/   audit log (MongoDB, PostgreSQL fallback queue)
       shared/             errors, HTTP helpers, domain events
@@ -229,6 +230,41 @@ socket.emit('typing.start', { conversation_id }, (ack) => console.log(ack)); // 
   While MongoDB is down, entries wait in PostgreSQL and are retried every 30 s.
 - Without `MONGODB_URI` the audit log is disabled. See ADR-016.
 
+## Files
+
+| Method | Endpoint                     | Notes                                              |
+| ------ | ---------------------------- | -------------------------------------------------- |
+| POST   | `/api/v1/files`              | Start an upload; returns a presigned `PUT` URL     |
+| POST   | `/api/v1/files/:id/complete` | Verifies the upload (size and actual content type) |
+| GET    | `/api/v1/files/:id`          | One of your uploads                                |
+
+```js
+const { data } = await api.post('/api/v1/files', {
+  filename: file.name,
+  content_type: file.type,
+  size: file.size,
+});
+await fetch(data.upload.url, { method: 'PUT', headers: data.upload.headers, body: file });
+await api.post(`/api/v1/files/${data.file.id}/complete`);
+await api.post('/api/v1/posts', { content: 'Team outing', attachment_ids: [data.file.id] });
+```
+
+- The bytes go straight to object storage (Cloudflare R2), never through the API. The bucket is
+  private and every URL is presigned.
+- Allowed types: JPEG, PNG, GIF, WebP, MP4, PDF, Word/Excel/PowerPoint, ZIP, TXT and CSV.
+  - The size limit is 25 MB (`FILE_MAX_BYTES`).
+  - Completing an upload checks the actual bytes, so a renamed `.exe` is rejected and deleted.
+- Attach up to 10 of your own `READY` files to a post or chat message with `attachment_ids`.
+  - Attachments come back with download URLs valid for at least an hour.
+  - People only get those URLs for posts and conversations they can already see.
+- Deleting a message removes its files; deleting a post keeps them for moderation.
+- Cleanup:
+  - uploads that are never completed fail after an hour;
+  - files nothing uses are purged after 7 days.
+- Uploading from a browser needs a CORS rule on the bucket allowing `PUT` from the web app's
+  origin.
+- Without `S3_BUCKET` uploads are disabled. See ADR-017.
+
 ## Scripts
 
 | Command                     | Description             |
@@ -253,4 +289,5 @@ truncate tables. Migrations are applied to it automatically before the suite sta
 ```
 
 Status codes: 400 validation, 401 authentication, 403 authorization, 404 not found, 409 conflict,
-413 payload too large, 429 rate limit, 500 unexpected, 503 dependency unavailable.
+413 payload too large, 422 rejected content, 429 rate limit, 500 unexpected, 503 dependency
+unavailable.

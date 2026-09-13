@@ -1,12 +1,14 @@
+import { toAttachmentsResponse, type FileView } from '../../file';
 import { toUserReference, type UserSummary } from '../../identity';
 import type { ConversationDetails, ConversationSummary } from '../application/conversation.service';
 import { unreadCount, type Conversation, type Message } from '../domain/conversation';
 import type { ChannelListing } from '../domain/ports';
 
 type Users = ReadonlyMap<string, UserSummary>;
+type Files = ReadonlyMap<string, FileView>;
 
 /** Same shape over REST and WebSocket, so clients reconcile both by id / client_message_id. */
-export function toMessageResponse(message: Message, users: Users) {
+export function toMessageResponse(message: Message, users: Users, files: Files) {
   const deleted = message.deletedAt !== null;
   return {
     id: message.id,
@@ -15,6 +17,7 @@ export function toMessageResponse(message: Message, users: Users) {
     sender: toUserReference(users.get(message.senderId)),
     type: message.type,
     content: deleted ? null : message.content,
+    attachments: deleted ? [] : toAttachmentsResponse(message.attachmentIds, files),
     reply_to_id: message.replyToId,
     client_message_id: message.clientMessageId,
     created_at: message.createdAt.toISOString(),
@@ -38,7 +41,11 @@ function toConversationBase(conversation: Conversation) {
   };
 }
 
-export function toConversationSummaryResponse(summary: ConversationSummary, users: Users) {
+export function toConversationSummaryResponse(
+  summary: ConversationSummary,
+  users: Users,
+  files: Files,
+) {
   const { conversation, membership } = summary;
   return {
     ...toConversationBase(conversation),
@@ -48,7 +55,7 @@ export function toConversationSummaryResponse(summary: ConversationSummary, user
     last_read_seq: membership.lastReadSeq,
     unread_count: unreadCount(conversation, membership),
     muted_until: membership.mutedUntil?.toISOString() ?? null,
-    last_message: summary.lastMessage ? toMessageResponse(summary.lastMessage, users) : null,
+    last_message: summary.lastMessage ? toMessageResponse(summary.lastMessage, users, files) : null,
   };
 }
 

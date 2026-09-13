@@ -2,6 +2,7 @@ import { Router, type Request, type RequestHandler } from 'express';
 import { createRateLimiter } from '../../../shared/http/rate-limit';
 import { created, ok, paginated } from '../../../shared/http/response';
 import { validate } from '../../../shared/http/validate';
+import type { FileDirectory } from '../../file';
 import { requireAuthContext, type UserDirectory } from '../../identity';
 import { organizationContext } from '../../organization';
 import type { CommentService } from '../application/comment.service';
@@ -45,10 +46,12 @@ export function createSocialRouters(deps: {
   comments: CommentService;
   reactions: ReactionService;
   authors: UserDirectory;
+  /** Shows attachments; access follows the post's visibility. */
+  files: FileDirectory;
   /** requireAuth + requireOrganization, applied per route so unknown paths still 404. */
   guard: RequestHandler[];
 }): SocialRouters {
-  const { posts, comments, reactions, authors, guard } = deps;
+  const { posts, comments, reactions, authors, files, guard } = deps;
   // Spam protection for content creation (risk register 17).
   const writeLimiter = createRateLimiter({ windowMs: 60_000, limit: 30 });
 
@@ -63,15 +66,25 @@ export function createSocialRouters(deps: {
   };
 
   async function presentPosts(actor: Actor, items: Post[]) {
-    const [directory, summaries] = await Promise.all([
+    const [directory, summaries, attachments] = await Promise.all([
       authors.getSummaries(items.map((post) => post.authorId)),
       reactions.summarize(
         actor,
         items.map((post) => post.id),
       ),
+      files.describe(
+        actor.organization.organizationId,
+        items.flatMap((post) => post.attachmentIds),
+      ),
     ]);
     return items.map((post) =>
-      toPostResponse(post, directory, summaries.get(post.id) ?? emptyReactionSummary(), actor),
+      toPostResponse(
+        post,
+        directory,
+        summaries.get(post.id) ?? emptyReactionSummary(),
+        actor,
+        attachments,
+      ),
     );
   }
 
@@ -101,6 +114,7 @@ export function createSocialRouters(deps: {
       content: body.content,
       imageUrl: body.image_url ?? null,
       type: body.type,
+      attachmentIds: body.attachment_ids,
     });
     const [response] = await presentPosts(actor, [post]);
     created(res, response);
@@ -119,6 +133,7 @@ export function createSocialRouters(deps: {
     const post = await posts.update(actor, postIdOf(req), {
       content: body.content,
       imageUrl: body.image_url,
+      attachmentIds: body.attachment_ids,
     });
     const [response] = await presentPosts(actor, [post]);
     ok(res, response);

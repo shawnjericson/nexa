@@ -36,7 +36,10 @@ export interface Message {
   seq: number;
   clientMessageId: string | null;
   type: MessageType;
+  /** Empty for a message that only carries attachments, and once deleted. */
   content: string;
+  /** Attached files in display order; removed when the message is deleted. */
+  attachmentIds: string[];
   replyToId: string | null;
   createdAt: Date;
   editedAt: Date | null;

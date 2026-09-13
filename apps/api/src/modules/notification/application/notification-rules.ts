@@ -95,7 +95,8 @@ export function registerNotificationRules(
   });
 
   events.subscribe<MessageCreatedEvent>(MESSAGE_CREATED, async (event) => {
-    const { conversation_id, conversation_type, seq, recipient_ids, excerpt } = event.metadata;
+    const { conversation_id, conversation_type, seq, recipient_ids, excerpt, attachment_count } =
+      event.metadata;
     await notifications.deliver(
       event,
       recipient_ids.map((recipientId) => ({
@@ -112,6 +113,7 @@ export function registerNotificationRules(
           message_id: event.subject_id,
           seq,
           excerpt,
+          attachment_count,
         },
       })),
     );

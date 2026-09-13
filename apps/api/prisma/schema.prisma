@@ -49,6 +49,7 @@ model User {
   messages             Message[]
   notifications        Notification[]       @relation("NotificationsReceived")
   notificationsCaused  Notification[]       @relation("NotificationsCaused")
+  filesUploaded        File[]
 
   @@map("users")
 }
@@ -99,6 +100,7 @@ model Organization {
   posts         Post[]
   conversations Conversation[]
   notifications Notification[]
+  files         File[]
 
   @@map("organizations")
 }
@@ -267,6 +269,7 @@ model Post {
   author       User         @relation(fields: [authorId], references: [id])
   comments     Comment[]
   reactions    Reaction[]
+  attachments  PostAttachment[]
 
   // Target of the composite FKs that keep comments/reactions inside the post's organization.
   @@unique([id, organizationId])
@@ -412,12 +415,82 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId, organizationId], references: [id, organizationId], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id])
-  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies      Message[]    @relation("MessageReplies")
+  replyTo      Message?            @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]           @relation("MessageReplies")
+  attachments  MessageAttachment[]
 
   @@unique([conversationId, seq])
   @@unique([conversationId, senderId, clientMessageId])
+  // Target of the composite FK that keeps attachments inside the message's organization.
+  @@unique([id, organizationId])
   @@map("messages")
+}
+
+// ─── Files ─────────────────────────────────────────────────────────────────
+
+enum FileStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Metadata of an object in object storage (spec 12); the bytes never touch PostgreSQL.
+/// PENDING until the uploaded object has been verified; FAILED when it was rejected or abandoned.
+model File {
+  id             String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String     @map("organization_id") @db.Uuid
+  uploadedById   String     @map("uploaded_by_id") @db.Uuid
+  /// Random, never derived from the filename (ADR-017).
+  storageKey     String     @unique @map("storage_key") @db.VarChar(300)
+  filename       String     @db.VarChar(255)
+  mimeType       String     @map("mime_type") @db.VarChar(127)
+  size           Int
+  status         FileStatus @default(PENDING)
+  failureReason  String?    @map("failure_reason") @db.VarChar(200)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  uploadedAt     DateTime?  @map("uploaded_at") @db.Timestamptz(3)
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy         User                @relation(fields: [uploadedById], references: [id])
+  postAttachments    PostAttachment[]
+  messageAttachments MessageAttachment[]
+
+  // Target of the composite FKs that keep attachments inside the file's organization.
+  @@unique([id, organizationId])
+  @@index([uploadedById, status, createdAt])
+  @@index([status, createdAt])
+  @@map("files")
+}
+
+/// A file shown in a post. The file side is NO ACTION: a referenced file can't be deleted (risk
+/// register 13), while deleting the post or the organization removes the reference with it.
+model PostAttachment {
+  postId         String @map("post_id") @db.Uuid
+  fileId         String @map("file_id") @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  position       Int
+
+  post Post @relation(fields: [postId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  file File @relation(fields: [fileId, organizationId], references: [id, organizationId], onDelete: NoAction)
+
+  @@id([postId, fileId])
+  @@index([fileId])
+  @@map("post_attachments")
+}
+
+/// A file sent in a message; removed when the message is deleted (ADR-017).
+model MessageAttachment {
+  messageId      String @map("message_id") @db.Uuid
+  fileId         String @map("file_id") @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  position       Int
+
+  message Message @relation(fields: [messageId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  file    File    @relation(fields: [fileId, organizationId], references: [id, organizationId], onDelete: NoAction)
+
+  @@id([messageId, fileId])
+  @@index([fileId])
+  @@map("message_attachments")
 }
 
 // ─── Notification & platform ───────────────────────────────────────────────

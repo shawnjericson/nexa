@@ -20,11 +20,15 @@ export interface NewPost {
   imageUrl: string | null;
   type: PostType;
   visibility: PostVisibility;
+  /** Verified by the File module beforehand; stored in the same transaction as the post. */
+  attachmentIds: string[];
 }
 
 export interface PostChanges {
   content?: string;
   imageUrl?: string | null;
+  /** Replaces every attachment when set. */
+  attachmentIds?: string[];
 }
 
 /** Every method is scoped by organization and ignores soft-deleted posts. */

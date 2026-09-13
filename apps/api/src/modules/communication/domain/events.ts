@@ -18,7 +18,9 @@ export type MessageCreatedEvent = DomainEvent<
     conversation_type: ConversationType;
     seq: number;
     recipient_ids: string[];
+    /** Empty when the message only carries attachments. */
     excerpt: string;
+    attachment_count: number;
   }
 >;
 
