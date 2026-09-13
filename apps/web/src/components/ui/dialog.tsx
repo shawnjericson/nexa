@@ -21,7 +21,8 @@ export function DialogContent({
   className,
   hideTitle = false,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content> & {
+}: Omit<ComponentProps<typeof DialogPrimitive.Content>, 'title'> & {
+  // Rendered as the dialog's heading, not as the HTML title attribute.
   title: ReactNode;
   description?: ReactNode;
   hideTitle?: boolean;
