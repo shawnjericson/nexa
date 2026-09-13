@@ -53,6 +53,7 @@ export const vi = {
       LAST_OWNER:
         'Tổ chức cần ít nhất một chủ sở hữu. Hãy chỉ định người khác làm chủ sở hữu trước.',
       INVITATION_EMAIL_MISMATCH: 'Lời mời này được gửi tới một email khác.',
+      API_UNAVAILABLE: 'Máy chủ NEXA tạm thời không phản hồi. Vui lòng thử lại sau ít phút.',
     },
   },
   settings: {

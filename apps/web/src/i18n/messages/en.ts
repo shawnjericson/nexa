@@ -50,6 +50,8 @@ export const en: Messages = {
       MEMBER_MANAGEMENT_FORBIDDEN: 'You can only manage members whose role is below yours.',
       LAST_OWNER: 'The organization needs at least one owner. Make someone else an owner first.',
       INVITATION_EMAIL_MISMATCH: 'This invitation was sent to a different email address.',
+      API_UNAVAILABLE:
+        "NEXA's server isn't responding right now. Please try again in a few minutes.",
     },
   },
   settings: {
