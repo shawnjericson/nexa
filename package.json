@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @nexa/api dev",
+    "dev:web": "pnpm --filter @nexa/web dev",
+    "api-client:generate": "pnpm --filter @nexa/api-client generate",
     "build": "pnpm -r build",
     "start": "pnpm --filter @nexa/api start",
     "test": "pnpm -r test",

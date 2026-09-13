@@ -22,6 +22,7 @@ platform.
 | Validation       | Zod 4                                                                       |
 | API docs         | OpenAPI 3 + Swagger UI                                                      |
 | Logging          | pino (JSON in production, pretty in development)                            |
+| Web              | Next.js 16 (App Router), React 19, Tailwind 4, TanStack Query, Radix UI     |
 | Tests            | Vitest + Supertest + socket.io-client against real PostgreSQL/Redis/MongoDB |
 
 ## Repository layout
@@ -46,6 +47,9 @@ apps/
       app.ts              composition root + Express pipeline
       server.ts           process entry point
     test/                 integration tests
+  web/                    NEXA web app (Next.js): app/, features/, components/, i18n/
+packages/
+  api-client/             typed client generated from the API's OpenAPI document
 docs/
   adr/                    architecture decision records
   specs/                  original specification documents
@@ -72,7 +76,8 @@ echo | openssl s_client -starttls postgres -connect 139.180.139.17:5432 2>/dev/n
 
 pnpm --filter @nexa/api db:generate      # generate the Prisma client
 pnpm --filter @nexa/api db:migrate       # apply migrations
-pnpm dev                                 # http://localhost:4000
+pnpm dev                                 # API on http://localhost:4000
+pnpm dev:web                             # web app on http://localhost:3000
 ```
 
 Compare the fingerprint with the server's once, to rule out a man-in-the-middle:
@@ -90,6 +95,23 @@ openssl x509 -in apps/api/certs/postgres-server.pem -noout -fingerprint -sha256
 | `/openapi.json` | OpenAPI document              |
 | `/api/v1/*`     | NEXA API                      |
 | `/api/*`        | Same endpoints, exam contract |
+
+## Web app
+
+`apps/web` is the NEXA workspace in the browser (ADR-019). It follows the Frontend & Design System
+Specification and the brand sheet in `docs/specs/`.
+
+- The UI is in Vietnamese by default, with English one click away. Light and dark themes follow the
+  system.
+- Sign-in goes through the Next.js server: the refresh token stays in an httpOnly cookie, and only a
+  short-lived access token reaches the page.
+- The API client is generated from the API's OpenAPI document. After changing the API contract,
+  run `pnpm api-client:generate`; the web typecheck then shows what needs updating.
+- To try the UI without touching the development database, run the API against the test database
+  with `pnpm --filter @nexa/api dev:qa`. That mode also turns off the audit log and uploads to the
+  test bucket.
+- `apps/web/.env.example` lists the settings: `NEXT_PUBLIC_API_URL` for the browser and `API_URL`
+  for the Next.js server.
 
 ## Authentication
 

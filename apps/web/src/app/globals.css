@@ -1,0 +1,118 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the `dark` class set by next-themes (system preference by default). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens (Frontend & Design System Specification §4, brand sheet). Components use the
+ * Tailwind names below (bg-surface, text-muted, border-border, bg-accent...) - never raw colors.
+ */
+:root {
+  --background: #f7f7f5;
+  --surface: #ffffff;
+  --surface-subtle: #f1f2ef;
+  --text-primary: #171717;
+  --text-secondary: #6b6b67;
+  --border: #e7e7e2;
+  --accent: #087f6c;
+  --accent-strong: #065f56;
+  --accent-soft: #e4f2ee;
+  --accent-contrast: #ffffff;
+  --highlight: #0ea5a4;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --warning: #a15c00;
+  --warning-soft: #fdf3e2;
+  --success: #0f8a5f;
+  --sidebar: #fbfbf9;
+  --overlay: rgb(23 23 23 / 0.4);
+}
+
+.dark {
+  --background: #151614;
+  --surface: #191a18;
+  --surface-subtle: #20221f;
+  --text-primary: #e7e7e2;
+  --text-secondary: #a4a7a0;
+  --border: #30332f;
+  --accent: #35a892;
+  --accent-strong: #4bbba4;
+  --accent-soft: #1b322d;
+  --accent-contrast: #0e1714;
+  --highlight: #2cc4c2;
+  --danger: #f27a6f;
+  --danger-soft: #3a201d;
+  --warning: #f0b252;
+  --warning-soft: #33291a;
+  --success: #3cc28e;
+  --sidebar: #171816;
+  --overlay: rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-sidebar: var(--sidebar);
+  --color-fg: var(--text-primary);
+  --color-muted: var(--text-secondary);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-highlight: var(--highlight);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Typography (spec §4.3): page title 22-24px, navigation 13px; body 14px and metadata 12px
+     are Tailwind's text-sm and text-xs. */
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.875rem;
+  --text-nav: 0.8125rem;
+  --text-nav--line-height: 1.25rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    line-height: 1.375rem;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+  }
+
+  /* Respect reduced-motion preferences (spec §14). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

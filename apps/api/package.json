@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:qa": "tsx scripts/dev-test-db.ts",
     "build": "tsup",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
@@ -13,7 +14,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "openapi:export": "tsx scripts/export-openapi.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",

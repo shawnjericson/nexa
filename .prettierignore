@@ -3,6 +3,9 @@ dist
 coverage
 pnpm-lock.yaml
 apps/api/src/generated
+.next
+packages/api-client/openapi.json
+packages/api-client/src/schema.d.ts
 docs/specs
 apps/api/.agents
 apps/api/.claude

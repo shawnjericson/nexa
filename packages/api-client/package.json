@@ -1,0 +1,21 @@
+{
+  "name": "@nexa/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed client for the NEXA API, generated from its OpenAPI document",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "pnpm --filter @nexa/api openapi:export && openapi-typescript openapi.json -o src/schema.d.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^6.0.3"
+  }
+}

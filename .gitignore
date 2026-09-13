@@ -10,9 +10,15 @@ coverage/
 
 # Generated
 apps/api/src/generated/
+.next/
+next-env.d.ts
+*.tsbuildinfo
 
 # Environment-specific TLS certificates (fetched per environment, see README)
 apps/api/certs/
+
+# Local tooling (dev server launch configs for previews)
+/.claude/
 
 # OS / editor
 .DS_Store

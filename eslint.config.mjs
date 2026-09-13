@@ -5,7 +5,15 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', 'apps/api/src/generated/**'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.next/**',
+      '**/next-env.d.ts',
+      'apps/api/src/generated/**',
+      'packages/api-client/src/schema.d.ts',
+    ],
   },
   js.configs.recommended,
   tseslint.configs.recommended,
@@ -19,6 +27,12 @@ export default defineConfig(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
+    },
+  },
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: { ...globals.browser },
     },
   },
 );
