@@ -9,20 +9,20 @@ platform.
 
 ## Stack
 
-| Layer            | Technology                                                          |
-| ---------------- | ------------------------------------------------------------------- |
-| Runtime          | Node.js 22, TypeScript                                              |
-| HTTP             | Express 5                                                           |
-| Database         | PostgreSQL 18 via Prisma 7 (TLS, pinned cert)                       |
-| Realtime         | Socket.IO 4 + Redis adapter (multi-instance fan-out)                |
-| Cache / presence | Redis 8 (TLS, ACL user limited to `nexa:*`)                         |
-| Logs / events    | MongoDB 8 (audit + event log, see ADR-009)                          |
-| Auth             | JWT access tokens (jose) + rotating refresh                         |
-| Passwords        | bcrypt                                                              |
-| Validation       | Zod 4                                                               |
-| API docs         | OpenAPI 3 + Swagger UI                                              |
-| Logging          | pino (JSON in production, pretty in development)                    |
-| Tests            | Vitest + Supertest + socket.io-client against real PostgreSQL/Redis |
+| Layer            | Technology                                                                  |
+| ---------------- | --------------------------------------------------------------------------- |
+| Runtime          | Node.js 22, TypeScript                                                      |
+| HTTP             | Express 5                                                                   |
+| Database         | PostgreSQL 18 via Prisma 7 (TLS, pinned cert)                               |
+| Realtime         | Socket.IO 4 + Redis adapter (multi-instance fan-out)                        |
+| Cache / presence | Redis 8 (TLS, ACL user limited to `nexa:*`)                                 |
+| Logs / events    | MongoDB 8 (audit + event log, see ADR-009)                                  |
+| Auth             | JWT access tokens (jose) + rotating refresh                                 |
+| Passwords        | bcrypt                                                                      |
+| Validation       | Zod 4                                                                       |
+| API docs         | OpenAPI 3 + Swagger UI                                                      |
+| Logging          | pino (JSON in production, pretty in development)                            |
+| Tests            | Vitest + Supertest + socket.io-client against real PostgreSQL/Redis/MongoDB |
 
 ## Repository layout
 
@@ -32,12 +32,14 @@ apps/
     prisma/               schema + migrations
     src/
       config/             environment validation
-      infrastructure/     database, redis, websocket (realtime hub), logger
+      infrastructure/     database, redis, mongo, websocket (realtime hub), logger
       modules/
         identity/         register, login, tokens, sessions, profiles
         organization/     organizations, memberships, roles & permissions, org context
         social/           posts, comments, reactions, feed
         communication/    direct/group/channel chat, messages, read state, presence, sockets
+        notification/     in-app notifications from domain events (coalesced, realtime)
+        administration/   audit log (MongoDB, PostgreSQL fallback queue)
       shared/             errors, HTTP helpers, domain events
       app.ts              composition root + Express pipeline
       server.ts           process entry point
@@ -199,6 +201,33 @@ socket.emit('typing.start', { conversation_id }, (ack) => console.log(ack)); // 
   Leaving the organization removes you from every conversation.
 - Presence counts connections, so closing the laptop while the phone is connected keeps you online.
 - Without `REDIS_URL` the API runs as a single instance with in-process presence. See ADR-015.
+
+## Notifications & audit log
+
+| Method | Endpoint                                         | Notes                              |
+| ------ | ------------------------------------------------ | ---------------------------------- |
+| GET    | `/api/v1/notifications?limit&cursor&unread_only` | Latest activity first              |
+| GET    | `/api/v1/notifications/unread-count`             | Badge count                        |
+| PATCH  | `/api/v1/notifications/:id/read`                 | Idempotent                         |
+| POST   | `/api/v1/notifications/read-all`                 | Returns how many were marked read  |
+| GET    | `/api/v1/audit-logs?limit&cursor&action`         | Needs `audit.read` (owners/admins) |
+
+- You are notified about:
+  - comments on your posts, and replies to your comments;
+  - new reactions to your posts;
+  - announcements;
+  - chat messages;
+  - changes to your role.
+
+  You are never notified about your own actions.
+
+- Bursts are grouped: "Bob, An and 3 others commented" is one notification with `count` and
+  `actors`, until you read it.
+- New and updated notifications arrive over Socket.IO as `notification.created`; upsert them by
+  `id`.
+- The audit log records organization, membership, department and moderation actions in MongoDB.
+  While MongoDB is down, entries wait in PostgreSQL and are retried every 30 s.
+- Without `MONGODB_URI` the audit log is disabled. See ADR-016.
 
 ## Scripts
 

@@ -1,6 +1,12 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
+import { excerpt } from '../../../shared/utils/excerpt';
 import type { Comment, Post } from '../domain/content';
-import { COMMENT_CREATED, type CommentCreatedEvent } from '../domain/events';
+import {
+  COMMENT_CREATED,
+  COMMENT_DELETED,
+  type CommentCreatedEvent,
+  type CommentDeletedEvent,
+} from '../domain/events';
 import { canDeleteComment, type Actor } from '../domain/policies';
 import type { CommentRepository, PostRepository } from '../domain/ports';
 import { SocialErrors } from '../domain/social-errors';
@@ -58,6 +64,7 @@ export class CommentService {
     const post = await this.requirePost(actor, postId);
 
     let parentId: string | null = null;
+    let parentAuthorId: string | null = null;
     if (input.parentId) {
       const parent = await this.deps.comments.findById(
         actor.organization.organizationId,
@@ -66,6 +73,7 @@ export class CommentService {
       if (!parent || parent.postId !== post.id) throw SocialErrors.parentCommentNotFound();
       // Nesting is bounded to one level: a reply to a reply joins its thread root (risk register 7.4).
       parentId = parent.parentId ?? parent.id;
+      parentAuthorId = parent.authorId;
     }
 
     const comment = await this.deps.comments.create({
@@ -80,7 +88,13 @@ export class CommentService {
       organization_id: comment.organizationId,
       actor_id: actor.userId,
       subject_id: comment.id,
-      metadata: { post_id: post.id, post_author_id: post.authorId, parent_id: parentId },
+      metadata: {
+        post_id: post.id,
+        post_author_id: post.authorId,
+        parent_id: parentId,
+        parent_author_id: parentAuthorId,
+        excerpt: excerpt(comment.content),
+      },
     });
     await this.deps.events.publish(event);
     return comment;
@@ -98,6 +112,18 @@ export class CommentService {
       this.now(),
     );
     if (!deleted) throw SocialErrors.commentNotFound();
+
+    const event: CommentDeletedEvent = createEvent(COMMENT_DELETED, {
+      organization_id: comment.organizationId,
+      actor_id: actor.userId,
+      subject_id: comment.id,
+      metadata: {
+        post_id: comment.postId,
+        author_id: comment.authorId,
+        moderated: comment.authorId !== actor.userId,
+      },
+    });
+    await this.deps.events.publish(event);
   }
 
   private async requirePost(actor: Actor, postId: string): Promise<Post> {

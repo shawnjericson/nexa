@@ -1,6 +1,12 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
+import { excerpt } from '../../../shared/utils/excerpt';
 import type { Post, PostType } from '../domain/content';
-import { POST_CREATED, type PostCreatedEvent } from '../domain/events';
+import {
+  POST_CREATED,
+  POST_DELETED,
+  type PostCreatedEvent,
+  type PostDeletedEvent,
+} from '../domain/events';
 import { canDeletePost, canEditPost, canPublish, type Actor } from '../domain/policies';
 import type { PostChanges, PostRepository } from '../domain/ports';
 import { SocialErrors } from '../domain/social-errors';
@@ -35,7 +41,7 @@ export class PostService {
       organization_id: post.organizationId,
       actor_id: actor.userId,
       subject_id: post.id,
-      metadata: { post_type: post.type },
+      metadata: { post_type: post.type, excerpt: excerpt(post.content) },
     });
     await this.deps.events.publish(event);
     return post;
@@ -67,6 +73,14 @@ export class PostService {
       this.now(),
     );
     if (!deleted) throw SocialErrors.postNotFound();
+
+    const event: PostDeletedEvent = createEvent(POST_DELETED, {
+      organization_id: post.organizationId,
+      actor_id: actor.userId,
+      subject_id: post.id,
+      metadata: { author_id: post.authorId, moderated: post.authorId !== actor.userId },
+    });
+    await this.deps.events.publish(event);
   }
 
   /** Cursor pagination on (created_at, id): new posts never shift later pages (risk register 8.1). */

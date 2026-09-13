@@ -47,6 +47,8 @@ model User {
   invitationsAccepted  Invitation[]         @relation("InvitationsAccepted")
   conversationsCreated Conversation[]       @relation("ConversationsCreated")
   messages             Message[]
+  notifications        Notification[]       @relation("NotificationsReceived")
+  notificationsCaused  Notification[]       @relation("NotificationsCaused")
 
   @@map("users")
 }
@@ -96,6 +98,7 @@ model Organization {
   departments   Department[]
   posts         Post[]
   conversations Conversation[]
+  notifications Notification[]
 
   @@map("organizations")
 }
@@ -415,4 +418,56 @@ model Message {
   @@unique([conversationId, seq])
   @@unique([conversationId, senderId, clientMessageId])
   @@map("messages")
+}
+
+// ─── Notification & platform ───────────────────────────────────────────────
+
+/// In-app notification (spec 11). While unread, notifications with the same group_key are
+/// coalesced into one with a count, so 1,000 likes stay one notification (risk register 12.3).
+model Notification {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  recipientId    String    @map("recipient_id") @db.Uuid
+  actorId        String?   @map("actor_id") @db.Uuid
+  type           String    @db.VarChar(64)
+  entityType     String    @map("entity_type") @db.VarChar(32)
+  entityId       String    @map("entity_id") @db.Uuid
+  groupKey       String?   @map("group_key") @db.VarChar(200)
+  count          Int       @default(1)
+  metadata       Json      @default("{}")
+  readAt         DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Last activity (creation or a coalesced event). Deliberately not bumped by reading.
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipient    User         @relation("NotificationsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("NotificationsCaused", fields: [actorId], references: [id], onDelete: SetNull)
+
+  // Most recently active first, per recipient and organization.
+  @@index([recipientId, organizationId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientId, organizationId, groupKey])
+  @@map("notifications")
+}
+
+/// Idempotency for event consumers: each event is applied once per consumer (risk register 12.2).
+model ProcessedEvent {
+  consumer    String   @db.VarChar(64)
+  eventId     String   @map("event_id") @db.VarChar(64)
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(3)
+
+  @@id([consumer, eventId])
+  @@map("processed_events")
+}
+
+/// Audit entries MongoDB could not take yet; a background job retries them (ADR-016).
+model PendingAuditEvent {
+  eventId   String   @id @map("event_id") @db.VarChar(64)
+  entry     Json
+  attempts  Int      @default(0)
+  lastError String?  @map("last_error") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("pending_audit_events")
 }

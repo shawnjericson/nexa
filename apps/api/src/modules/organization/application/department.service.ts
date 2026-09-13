@@ -1,4 +1,11 @@
+import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import { slugify } from '../../../shared/utils/slug';
+import {
+  DEPARTMENT_CREATED,
+  DEPARTMENT_DELETED,
+  type DepartmentCreatedEvent,
+  type DepartmentDeletedEvent,
+} from '../domain/events';
 import type { OrganizationActor } from '../domain/organization-context';
 import { OrganizationErrors } from '../domain/organization-errors';
 import type {
@@ -14,7 +21,11 @@ import type {
  */
 export class DepartmentService {
   constructor(
-    private readonly deps: { departments: DepartmentRepository; members: MembershipRepository },
+    private readonly deps: {
+      departments: DepartmentRepository;
+      members: MembershipRepository;
+      events: EventBus;
+    },
   ) {}
 
   list(actor: OrganizationActor): Promise<Department[]> {
@@ -27,16 +38,25 @@ export class DepartmentService {
     return department;
   }
 
-  create(
+  async create(
     actor: OrganizationActor,
     input: { name: string; description?: string | null },
   ): Promise<Department> {
-    return this.deps.departments.create({
+    const department = await this.deps.departments.create({
       organizationId: actor.organization.organizationId,
       name: input.name,
       slug: slugOf(input.name),
       description: input.description ?? null,
     });
+
+    const event: DepartmentCreatedEvent = createEvent(DEPARTMENT_CREATED, {
+      organization_id: department.organizationId,
+      actor_id: actor.userId,
+      subject_id: department.id,
+      metadata: { name: department.name },
+    });
+    await this.deps.events.publish(event);
+    return department;
   }
 
   async update(
@@ -58,8 +78,17 @@ export class DepartmentService {
   }
 
   async delete(actor: OrganizationActor, id: string): Promise<void> {
+    const department = await this.get(actor, id);
     const deleted = await this.deps.departments.delete(actor.organization.organizationId, id);
     if (!deleted) throw OrganizationErrors.departmentNotFound();
+
+    const event: DepartmentDeletedEvent = createEvent(DEPARTMENT_DELETED, {
+      organization_id: department.organizationId,
+      actor_id: actor.userId,
+      subject_id: department.id,
+      metadata: { name: department.name },
+    });
+    await this.deps.events.publish(event);
   }
 
   async listMemberIds(actor: OrganizationActor, id: string): Promise<string[]> {

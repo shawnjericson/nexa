@@ -1,6 +1,11 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import { slugify } from '../../../shared/utils/slug';
-import { ORGANIZATION_CREATED, type OrganizationCreatedEvent } from '../domain/events';
+import {
+  ORGANIZATION_CREATED,
+  ORGANIZATION_UPDATED,
+  type OrganizationCreatedEvent,
+  type OrganizationUpdatedEvent,
+} from '../domain/events';
 import type { OrganizationActor } from '../domain/organization-context';
 import { OrganizationErrors } from '../domain/organization-errors';
 import type {
@@ -59,7 +64,23 @@ export class OrganizationManagementService {
     return { organization, memberCount, myRole: actor.organization.roleKey };
   }
 
-  update(actor: OrganizationActor, changes: OrganizationChanges): Promise<Organization> {
-    return this.deps.organizations.update(actor.organization.organizationId, changes);
+  async update(actor: OrganizationActor, changes: OrganizationChanges): Promise<Organization> {
+    const organization = await this.deps.organizations.update(
+      actor.organization.organizationId,
+      changes,
+    );
+
+    const event: OrganizationUpdatedEvent = createEvent(ORGANIZATION_UPDATED, {
+      organization_id: organization.id,
+      actor_id: actor.userId,
+      subject_id: organization.id,
+      metadata: {
+        fields: Object.entries(changes)
+          .filter(([, value]) => value !== undefined)
+          .map(([field]) => field),
+      },
+    });
+    await this.deps.events.publish(event);
+    return organization;
   }
 }

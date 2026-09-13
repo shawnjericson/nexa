@@ -3,13 +3,14 @@ import type { ConversationType } from './conversation';
 
 export const CONVERSATION_CREATED = 'communication.conversation_created';
 export const MESSAGE_CREATED = 'communication.message_created';
+export const MESSAGE_DELETED = 'communication.message_deleted';
 
 export type ConversationCreatedEvent = DomainEvent<
   typeof CONVERSATION_CREATED,
   { type: ConversationType; member_ids: string[] }
 >;
 
-/** Consumed by notifications later; recipients exclude the sender. */
+/** Consumed by notifications; recipients exclude the sender. */
 export type MessageCreatedEvent = DomainEvent<
   typeof MESSAGE_CREATED,
   {
@@ -17,5 +18,17 @@ export type MessageCreatedEvent = DomainEvent<
     conversation_type: ConversationType;
     seq: number;
     recipient_ids: string[];
+    excerpt: string;
+  }
+>;
+
+/** `moderated` is true when someone other than the sender deleted it. */
+export type MessageDeletedEvent = DomainEvent<
+  typeof MESSAGE_DELETED,
+  {
+    conversation_id: string;
+    conversation_type: ConversationType;
+    sender_id: string;
+    moderated: boolean;
   }
 >;

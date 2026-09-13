@@ -2,13 +2,16 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import type { Redis } from 'ioredis';
+import type { Db } from 'mongodb';
 import { env } from './config/env';
 import type { PrismaClient } from './generated/prisma/client';
 import { logger } from './infrastructure/logger/logger';
 import { httpLogger } from './infrastructure/logger/http-logger';
 import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
+import { createAdministrationModule, type AuditDocument } from './modules/administration';
 import { createCommunicationModule } from './modules/communication';
 import { createIdentityModule } from './modules/identity';
+import { createNotificationModule } from './modules/notification';
 import { createOrganizationModule } from './modules/organization';
 import { createSocialModule } from './modules/social';
 import { InProcessEventBus } from './shared/events/event-bus';
@@ -22,8 +25,12 @@ export interface AppDependencies {
   prisma: PrismaClient;
   /** Optional: presence and multi-instance fan-out use Redis when it is provided. */
   redis?: Redis | null;
+  /** Optional: the audit log lives in MongoDB; without it the audit log is disabled. */
+  mongo?: Db | null;
   /** Socket.IO hub; server.ts attaches it to the HTTP server. Emits are no-ops until then. */
   realtime?: RealtimeHub;
+  /** Periodic jobs such as retrying queued audit entries (the server enables them). */
+  backgroundJobs?: boolean;
   readinessChecks?: Record<string, ReadinessCheck>;
 }
 
@@ -35,7 +42,9 @@ export interface AppDependencies {
 export function createApp({
   prisma,
   redis = null,
+  mongo = null,
   realtime = new RealtimeHub(),
+  backgroundJobs = false,
   readinessChecks = {},
 }: AppDependencies): Express {
   const events = new InProcessEventBus(logger);
@@ -46,22 +55,41 @@ export function createApp({
     profileVisibility: organization.profileVisibility,
     config: env,
   });
+  const users = identity.userDirectory;
   const guard = [identity.requireAuth, organization.requireOrganization];
-  const social = createSocialModule({ prisma, events, authors: identity.userDirectory, guard });
+
+  const social = createSocialModule({ prisma, events, authors: users, guard });
   const communication = createCommunicationModule({
     prisma,
     events,
     hub: realtime,
     redis,
-    users: identity.userDirectory,
+    users,
     directory: organization.directory,
     authenticate: identity.authenticate,
     resolveContext: organization.resolveContext,
     guard,
   });
+  // Consumers of the other modules' domain events.
+  const notification = createNotificationModule({
+    prisma,
+    events,
+    hub: realtime,
+    users,
+    directory: organization.directory,
+    guard,
+  });
+  const administration = createAdministrationModule({
+    prisma,
+    events,
+    auditCollection: mongo ? mongo.collection<AuditDocument>(env.MONGODB_AUDIT_COLLECTION) : null,
+    users,
+    guard,
+    backgroundJobs,
+  });
   const organizationRouter = organization.createRouter({
     requireAuth: identity.requireAuth,
-    users: identity.userDirectory,
+    users,
   });
 
   const app = express();
@@ -83,6 +111,8 @@ export function createApp({
   v1.use(organizationRouter);
   v1.use(social.v1);
   v1.use(communication.router);
+  v1.use(notification.router);
+  v1.use(administration.router);
   app.use('/api/v1', v1);
 
   // Exam contract (ADR-010): the same use cases without the version segment.

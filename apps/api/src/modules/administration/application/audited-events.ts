@@ -1,0 +1,27 @@
+import { MESSAGE_DELETED } from '../../communication';
+import {
+  DEPARTMENT_CREATED,
+  DEPARTMENT_DELETED,
+  MEMBER_INVITED,
+  MEMBER_JOINED,
+  MEMBER_REMOVED,
+  MEMBER_UPDATED,
+  ORGANIZATION_CREATED,
+  ORGANIZATION_UPDATED,
+} from '../../organization';
+import { COMMENT_DELETED, POST_DELETED } from '../../social';
+
+/** Administrative and moderation actions that organization auditors can review. */
+export const AUDITED_EVENTS = [
+  ORGANIZATION_CREATED,
+  ORGANIZATION_UPDATED,
+  MEMBER_INVITED,
+  MEMBER_JOINED,
+  MEMBER_UPDATED,
+  MEMBER_REMOVED,
+  DEPARTMENT_CREATED,
+  DEPARTMENT_DELETED,
+  POST_DELETED,
+  COMMENT_DELETED,
+  MESSAGE_DELETED,
+] as const;

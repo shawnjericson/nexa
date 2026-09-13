@@ -4,6 +4,9 @@ export { prisma };
 
 // permissions is reference data seeded by migrations, so it is kept.
 const TABLES = [
+  'notifications',
+  'processed_events',
+  'pending_audit_events',
   'messages',
   'conversation_members',
   'conversations',

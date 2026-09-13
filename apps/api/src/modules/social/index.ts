@@ -14,10 +14,14 @@ import { createSocialRouters, type SocialRouters } from './presentation/routes';
 // Public contract of the Social module.
 export {
   COMMENT_CREATED,
+  COMMENT_DELETED,
   POST_CREATED,
+  POST_DELETED,
   POST_REACTED,
   type CommentCreatedEvent,
+  type CommentDeletedEvent,
   type PostCreatedEvent,
+  type PostDeletedEvent,
   type PostReactedEvent,
 } from './domain/events';
 

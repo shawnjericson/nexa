@@ -26,7 +26,12 @@ export class ReactionService {
         organization_id: organizationId,
         actor_id: actor.userId,
         subject_id: post.id,
-        metadata: { post_id: post.id, post_author_id: post.authorId, reaction: type },
+        metadata: {
+          post_id: post.id,
+          post_author_id: post.authorId,
+          reaction: type,
+          previous_reaction: previous,
+        },
       });
       await this.deps.events.publish(event);
     }

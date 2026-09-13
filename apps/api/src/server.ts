@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { checkDatabase, prisma } from './infrastructure/database/prisma';
 import { logger } from './infrastructure/logger/logger';
+import { mongoClient, mongoDb } from './infrastructure/mongo/mongo';
 import { checkRedis, redis } from './infrastructure/redis/redis';
 import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
 
@@ -10,7 +11,10 @@ const realtime = new RealtimeHub();
 const app = createApp({
   prisma,
   redis,
+  mongo: mongoDb,
   realtime,
+  backgroundJobs: true,
+  // MongoDB is not a readiness dependency: when it is down, audit entries queue in PostgreSQL.
   readinessChecks: { database: checkDatabase, ...(redis && { redis: checkRedis }) },
 });
 const server = createServer(app);
@@ -20,7 +24,7 @@ server.listen(env.PORT, () => {
   logger.info(
     `NEXA API listening on http://localhost:${env.PORT} (docs: /docs, realtime: ${
       redis ? 'Redis adapter' : 'single instance'
-    })`,
+    }, audit log: ${mongoDb ? 'MongoDB' : 'disabled'})`,
   );
 });
 
@@ -35,7 +39,7 @@ function shutdown(signal: NodeJS.Signals): void {
   // Closing the realtime hub disconnects every socket and closes the HTTP server.
   realtime
     .close()
-    .then(() => Promise.all([prisma.$disconnect(), redis?.quit()]))
+    .then(() => Promise.all([prisma.$disconnect(), redis?.quit(), mongoClient?.close()]))
     .then(
       () => process.exit(0),
       (err: unknown) => {

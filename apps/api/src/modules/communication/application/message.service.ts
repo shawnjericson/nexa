@@ -1,7 +1,13 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
+import { excerpt } from '../../../shared/utils/excerpt';
 import { ChatErrors } from '../domain/chat-errors';
 import type { Message } from '../domain/conversation';
-import { MESSAGE_CREATED, type MessageCreatedEvent } from '../domain/events';
+import {
+  MESSAGE_CREATED,
+  MESSAGE_DELETED,
+  type MessageCreatedEvent,
+  type MessageDeletedEvent,
+} from '../domain/events';
 import { canDeleteMessage, canEditMessage, type ChatActor } from '../domain/policies';
 import type { ChatRealtime, ConversationRepository, MessageRepository } from '../domain/ports';
 import type { ConversationService } from './conversation.service';
@@ -65,6 +71,7 @@ export class MessageService {
           conversation_type: conversation.type,
           seq: result.message.seq,
           recipient_ids: memberIds.filter((id) => id !== actor.userId),
+          excerpt: excerpt(result.message.content),
         },
       });
       await this.deps.events.publish(event);
@@ -127,6 +134,19 @@ export class MessageService {
       await this.deps.conversations.listMemberIds(conversation.id),
       deleted,
     );
+
+    const event: MessageDeletedEvent = createEvent(MESSAGE_DELETED, {
+      organization_id: conversation.organizationId,
+      actor_id: actor.userId,
+      subject_id: message.id,
+      metadata: {
+        conversation_id: conversation.id,
+        conversation_type: conversation.type,
+        sender_id: message.senderId,
+        moderated: message.senderId !== actor.userId,
+      },
+    });
+    await this.deps.events.publish(event);
     return deleted;
   }
 }

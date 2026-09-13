@@ -38,6 +38,11 @@ export default defineConfig({
       REDIS_URL: '',
       TEST_REDIS_URL: process.env.REDIS_URL ?? '',
       TEST_REDIS_TLS_CA_FILE: process.env.REDIS_TLS_CA_FILE ?? '',
+      // Likewise the app runs without MongoDB; audit-log.test.ts passes a Db explicitly and
+      // writes to a separate collection it cleans up.
+      MONGODB_URI: '',
+      TEST_MONGODB_URI: process.env.MONGODB_URI ?? '',
+      MONGODB_AUDIT_COLLECTION: 'test_audit_logs',
     },
   },
 });

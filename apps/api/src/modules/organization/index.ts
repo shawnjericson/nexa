@@ -26,6 +26,17 @@ import { createOrganizationRouter } from './presentation/routes';
 
 // Public contract of the Organization module.
 export {
+  DEPARTMENT_CREATED,
+  DEPARTMENT_DELETED,
+  MEMBER_INVITED,
+  MEMBER_JOINED,
+  MEMBER_REMOVED,
+  MEMBER_UPDATED,
+  ORGANIZATION_CREATED,
+  ORGANIZATION_UPDATED,
+  type MemberUpdatedEvent,
+} from './domain/events';
+export {
   hasPermission,
   type OrganizationActor,
   type OrganizationContext,
@@ -98,6 +109,7 @@ export function createOrganizationModule(deps: {
         departments: new DepartmentService({
           departments: new PrismaDepartmentRepository(prisma),
           members: memberships,
+          events,
         }),
         users,
       }),

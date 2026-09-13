@@ -21,8 +21,10 @@ import { registerChatSockets } from './presentation/socket';
 export {
   CONVERSATION_CREATED,
   MESSAGE_CREATED,
+  MESSAGE_DELETED,
   type ConversationCreatedEvent,
   type MessageCreatedEvent,
+  type MessageDeletedEvent,
 } from './domain/events';
 
 export interface CommunicationModule {

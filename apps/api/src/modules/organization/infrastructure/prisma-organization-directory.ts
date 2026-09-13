@@ -15,4 +15,12 @@ export class PrismaOrganizationDirectory implements OrganizationDirectory {
     });
     return new Set(rows.map((row) => row.userId));
   }
+
+  async listActiveMemberIds(organizationId: string): Promise<string[]> {
+    const rows = await this.prisma.organizationMember.findMany({
+      where: { organizationId, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    return rows.map((row) => row.userId);
+  }
 }
