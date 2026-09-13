@@ -1,27 +1,19 @@
 'use client';
 
-import { unwrap } from '@nexa/api-client';
-import { useQuery } from '@tanstack/react-query';
 import { Bell, Search } from 'lucide-react';
 import Link from 'next/link';
 import { LogoMark } from '@/components/brand/logo';
 import { Kbd } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
-import { useOrgKey } from '@/features/organization/organization-provider';
+import { useUnreadNotificationCount } from '@/features/notifications/queries';
 import { useI18n } from '@/i18n/provider';
-import { api } from '@/lib/api/client';
 import { openCommandPalette } from './command-palette';
 import { UserMenu } from './user-menu';
 
 function NotificationsButton() {
   const { t } = useI18n();
-  const orgKey = useOrgKey();
-  const { data } = useQuery({
-    queryKey: orgKey('notifications', 'unread-count'),
-    queryFn: () => unwrap(api.GET('/api/v1/notifications/unread-count')),
-    refetchInterval: 60_000,
-  });
+  const { data } = useUnreadNotificationCount();
   const unread = (data?.unread_count ?? 0) > 0;
   const label = unread
     ? `${t('nav.notifications')} - ${t('shell.unreadNotifications')}`

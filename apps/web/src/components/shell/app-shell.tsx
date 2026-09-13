@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/states';
+import { ConnectionBanner } from '@/features/realtime/realtime-provider';
 import { useI18n } from '@/i18n/provider';
 import { CommandPalette } from './command-palette';
 import { MobileNav } from './mobile-nav';
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
+        <ConnectionBanner />
         <main id="main" className="min-h-0 flex-1 overflow-y-auto">
           {children}
         </main>

@@ -5,11 +5,12 @@ import { useEffect, type ReactNode } from 'react';
 import { AppShell, ShellSkeleton } from '@/components/shell/app-shell';
 import { ErrorState } from '@/components/ui/states';
 import { OrganizationProvider } from '@/features/organization/organization-provider';
+import { RealtimeProvider } from '@/features/realtime/realtime-provider';
 import { useI18n } from '@/i18n/provider';
 import { SessionProvider, useSession } from '@/lib/auth/session-provider';
 
 function RequireSession({ children }: { children: ReactNode }) {
-  const { status, retry } = useSession();
+  const { status, error, retry } = useSession();
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -23,7 +24,8 @@ function RequireSession({ children }: { children: ReactNode }) {
       <ErrorState
         className="min-h-dvh justify-center"
         title={t('auth.unavailableTitle')}
-        error={new TypeError('offline')}
+        // Says why: the network, or too many requests (the session retries by itself).
+        error={error ?? new TypeError('offline')}
         onRetry={retry}
       />
     );
@@ -37,7 +39,9 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     <SessionProvider>
       <RequireSession>
         <OrganizationProvider fallback={<ShellSkeleton />}>
-          <AppShell>{children}</AppShell>
+          <RealtimeProvider>
+            <AppShell>{children}</AppShell>
+          </RealtimeProvider>
         </OrganizationProvider>
       </RequireSession>
     </SessionProvider>
