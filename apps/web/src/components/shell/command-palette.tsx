@@ -4,47 +4,73 @@ import { unwrap } from '@nexa/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import {
+  FileText,
   Hash,
   Languages,
+  MessageSquare,
   MessageSquarePlus,
   PenSquare,
   Plus,
+  Search,
   SunMoon,
+  UserRound,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { conversationTitle } from '@/features/chat/conversation-display';
 import { useOrganization, useOrgKey } from '@/features/organization/organization-provider';
+import { searchable, useSearchOverview } from '@/features/search/queries';
 import { useI18n } from '@/i18n/provider';
 import { api } from '@/lib/api/client';
+import { fold } from '@/lib/format';
+import type { UserRef } from '@/lib/types';
+import { useDebounced } from '@/lib/use-debounced';
 import { ADMIN_ITEM, NAV_SECTIONS, SETTINGS_ITEM } from './navigation';
 
 const OPEN_EVENT = 'nexa:command-palette';
+const RESULTS_PER_KIND = 4;
 
 export function openCommandPalette() {
   window.dispatchEvent(new Event(OPEN_EVENT));
 }
+
+/** Every typed word must appear, ignoring case and accents ("tin nhan" finds "Tin nhắn"). */
+function matches(value: string, search: string, keywords?: string[]): number {
+  const haystack = fold([value, ...(keywords ?? [])].join(' '));
+  const words = fold(search).split(/\s+/).filter(Boolean);
+  return words.every((word) => haystack.includes(word)) ? 1 : 0;
+}
+
+const isUser = (user: UserRef | null): user is UserRef => Boolean(user);
 
 function Item({
   icon: Icon,
   onSelect,
   children,
   value,
+  keywords,
+  hint,
 }: {
   icon: LucideIcon;
   onSelect(): void;
   children: ReactNode;
   value?: string;
+  keywords?: string[];
+  hint?: ReactNode;
 }) {
   return (
     <Command.Item
       value={value}
+      keywords={keywords}
       onSelect={onSelect}
       className="flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg data-[selected=true]:bg-surface-subtle"
     >
       <Icon className="size-4 shrink-0 text-muted" aria-hidden />
-      <span className="truncate">{children}</span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {hint && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted">{hint}</span>}
     </Command.Item>
   );
 }
@@ -55,8 +81,9 @@ const GROUP =
   '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider';
 
 /**
- * Ctrl/Cmd + K (spec §8): permission-aware navigation and actions. Only destinations the person
- * can already reach are listed; search results join in with the Search milestone.
+ * Ctrl/Cmd + K (spec §8): search, navigation and actions in one place. Everything listed is
+ * something the person can already reach: search results come from the API, which only searches
+ * what they can see.
  */
 export function CommandPalette() {
   const i18n = useI18n();
@@ -66,6 +93,9 @@ export function CommandPalette() {
   const { isManager } = useOrganization();
   const orgKey = useOrgKey();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const debounced = useDebounced(search, 200);
+  const results = useSearchOverview(debounced, RESULTS_PER_KIND, open);
 
   const { data: channels } = useQuery({
     queryKey: orgKey('channels'),
@@ -89,6 +119,11 @@ export function CommandPalette() {
     };
   }, []);
 
+  // Every opening starts from a blank search.
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
+
   const run = (action: () => void) => {
     setOpen(false);
     action();
@@ -100,15 +135,24 @@ export function CommandPalette() {
     ...(isManager ? [ADMIN_ITEM] : []),
   ];
 
+  const query = search.trim();
+  const found = searchable(query) && searchable(debounced) ? results.data : undefined;
+  const people = found?.people.items.filter(isUser) ?? [];
+  // Results always match: the server already decided they do (accents, prefixes).
+  const always = [search];
+
   return (
     <Command.Dialog
       open={open}
       onOpenChange={setOpen}
       label={t('commands.title')}
+      filter={matches}
       overlayClassName="fixed inset-0 z-40 bg-overlay"
       contentClassName="fixed top-[12vh] left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
     >
       <Command.Input
+        value={search}
+        onValueChange={setSearch}
         placeholder={t('commands.placeholder')}
         className="h-12 w-full border-b border-border bg-transparent px-4 text-sm text-fg outline-none placeholder:text-muted"
       />
@@ -116,6 +160,91 @@ export function CommandPalette() {
         <Command.Empty className="px-3 py-6 text-center text-sm text-muted">
           {t('commands.empty')}
         </Command.Empty>
+
+        {searchable(query) && (
+          <Command.Group heading={t('search.title')} className={GROUP}>
+            <Item
+              icon={Search}
+              value="search-everything"
+              keywords={always}
+              hint={results.isFetching ? t('search.searching') : undefined}
+              onSelect={() => go(`/search?q=${encodeURIComponent(query)}`)}
+            >
+              {t('search.searchFor', { query })}
+            </Item>
+          </Command.Group>
+        )}
+
+        {people.length > 0 && (
+          <Command.Group heading={t('search.people')} className={GROUP}>
+            {people.map((user) => (
+              <Item
+                key={user.id}
+                icon={UserRound}
+                value={`person:${user.id}`}
+                keywords={always}
+                hint={`@${user.username}`}
+                onSelect={() => go(`/people/${user.id}`)}
+              >
+                {user.display_name}
+              </Item>
+            ))}
+          </Command.Group>
+        )}
+
+        {found && found.conversations.items.length > 0 && (
+          <Command.Group heading={t('search.conversations')} className={GROUP}>
+            {found.conversations.items.map((hit) => (
+              <Item
+                key={hit.id}
+                icon={hit.type === 'CHANNEL' ? Hash : Users}
+                value={`conversation:${hit.id}`}
+                keywords={always}
+                hint={hit.joined ? t('search.joined') : undefined}
+                onSelect={() => go(hit.joined ? `/messages/${hit.id}` : `/channels?open=${hit.id}`)}
+              >
+                {hit.name ?? hit.slug}
+              </Item>
+            ))}
+          </Command.Group>
+        )}
+
+        {found && found.posts.items.length > 0 && (
+          <Command.Group heading={t('search.posts')} className={GROUP}>
+            {found.posts.items.map((hit) => (
+              <Item
+                key={hit.id}
+                icon={FileText}
+                value={`post:${hit.id}`}
+                keywords={always}
+                hint={hit.author?.display_name}
+                onSelect={() => go(`/feed/${hit.id}`)}
+              >
+                {hit.snippet.text}
+              </Item>
+            ))}
+          </Command.Group>
+        )}
+
+        {found && found.messages.items.length > 0 && (
+          <Command.Group heading={t('search.messages')} className={GROUP}>
+            {found.messages.items.map((hit) => {
+              const title = conversationTitle(hit.conversation, t('common.formerMember'));
+              return (
+                <Item
+                  key={hit.id}
+                  icon={MessageSquare}
+                  value={`message:${hit.id}`}
+                  keywords={always}
+                  hint={hit.conversation.type === 'CHANNEL' ? `#${title}` : title}
+                  onSelect={() => go(`/messages/${hit.conversation.id}`)}
+                >
+                  {hit.snippet.text}
+                </Item>
+              );
+            })}
+          </Command.Group>
+        )}
 
         <Command.Group heading={t('commands.actions')} className={GROUP}>
           <Item icon={PenSquare} onSelect={() => go('/feed?compose=1')}>
@@ -146,6 +275,7 @@ export function CommandPalette() {
                   key={channel.id}
                   icon={Hash}
                   value={`#${channel.slug ?? channel.name}`}
+                  keywords={channel.name ? [channel.name] : undefined}
                   onSelect={() => go(`/messages/${channel.id}`)}
                 >
                   {channel.name}
