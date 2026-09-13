@@ -101,6 +101,19 @@ openssl x509 -in apps/api/certs/postgres-server.pem -noout -fingerprint -sha256
 `apps/web` is the NEXA workspace in the browser (ADR-019). It follows the Frontend & Design System
 Specification and the brand sheet in `docs/specs/`.
 
+| Route                        | What it is                                                                |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `/home`                      | Briefing: unread messages and notifications, announcements, quick actions |
+| `/feed`, `/feed/:id`         | Posts with attachments, reactions and comments                            |
+| `/messages`, `/messages/:id` | Direct, group and channel conversations, in realtime                      |
+| `/channels`                  | Browse, join and create channels                                          |
+| `/people`, `/people/:id`     | Directory by department with presence, and profiles                       |
+| `/notifications`             | Activity about you, grouped by day                                        |
+| `/search`                    | People, posts, channels and messages (also in the Ctrl/Cmd+K palette)     |
+| `/settings`                  | Profile, password, theme, language and organizations                      |
+| `/admin`                     | Members, invitations, departments, audit log, organization (by role)      |
+| `/invite?token=`             | Accept an invitation link                                                 |
+
 - The UI is in Vietnamese by default, with English one click away. Light and dark themes follow the
   system.
 - Sign-in goes through the Next.js server: the refresh token stays in an httpOnly cookie, and only a
