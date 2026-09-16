@@ -3,7 +3,7 @@ import express, { type Express } from 'express';
 import helmet from 'helmet';
 import type { Redis } from 'ioredis';
 import type { Db } from 'mongodb';
-import { env } from './config/env';
+import { env as baseEnv, type Env } from './config/env';
 import type { PrismaClient } from './generated/prisma/client';
 import { logger } from './infrastructure/logger/logger';
 import { httpLogger } from './infrastructure/logger/http-logger';
@@ -42,6 +42,8 @@ export interface AppDependencies {
   /** Periodic jobs such as retrying queued audit entries (the server enables them). */
   backgroundJobs?: boolean;
   readinessChecks?: Record<string, ReadinessCheck>;
+  /** Overrides for settings a test needs to vary, such as SIGNUP_MODE. */
+  config?: Partial<Env>;
 }
 
 /**
@@ -58,7 +60,9 @@ export function createApp({
   externalIdentity,
   backgroundJobs = false,
   readinessChecks = {},
+  config: overrides,
 }: AppDependencies): Express {
+  const env = { ...baseEnv, ...overrides };
   const events = new InProcessEventBus(logger);
   const organization = createOrganizationModule({ prisma, events, config: env });
   const identity = createIdentityModule({

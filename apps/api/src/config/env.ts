@@ -54,6 +54,14 @@ const EnvSchema = z
 
     DEFAULT_ORG_SLUG: z.string().min(1).default('nexa'),
     DEFAULT_ORG_NAME: z.string().min(1).default('NEXA'),
+    /**
+     * Who ends up inside the organization. "open" is ADR-010: anyone who registers joins
+     * DEFAULT_ORG_SLUG, which is what the exam expects and what a demo wants. "invite" leaves a
+     * new account in no organization at all until it accepts an invitation - the setting for a
+     * real workspace on a public address, where otherwise anyone who finds the sign-up page can
+     * read the staff directory and the company feed.
+     */
+    SIGNUP_MODE: z.enum(['open', 'invite']).default('open'),
 
     // Public address of the API, used in links it hands out (avatar pictures). Defaults to
     // http://localhost:PORT.

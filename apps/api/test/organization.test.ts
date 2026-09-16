@@ -1,7 +1,8 @@
+import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { PERMISSION_KEYS } from '../src/modules/organization';
-import { registerUser } from './helpers/auth';
+import { bearer, registerAndLogin, registerUser } from './helpers/auth';
 import { prisma, resetDatabase } from './helpers/db';
 
 const app = createApp({ prisma });
@@ -31,6 +32,28 @@ describe('organization data model', () => {
     expect(byKey.OWNER).toEqual([...PERMISSION_KEYS].sort());
     expect(byKey.ADMIN).not.toContain('organization.delete');
     expect(byKey.MEMBER).toEqual(['channel.create']);
+  });
+
+  it('puts a new account in no organization at all when sign-up is invite-only', async () => {
+    const inviteOnly = createApp({ prisma, config: { SIGNUP_MODE: 'invite' } });
+    const stranger = await registerAndLogin(inviteOnly);
+
+    const profile = await request(inviteOnly)
+      .get('/api/v1/users/me')
+      .set(bearer(stranger.accessToken));
+    const feed = await request(inviteOnly).get('/api/v1/feed').set(bearer(stranger.accessToken));
+    const chats = await request(inviteOnly)
+      .get('/api/v1/conversations')
+      .set(bearer(stranger.accessToken));
+    const memberships = await prisma.organizationMember.count({
+      where: { userId: stranger.user.id },
+    });
+
+    // They have an account, and that is all: nothing of anyone's workspace is readable.
+    expect(profile.status).toBe(200);
+    expect([feed.status, feed.body.code]).toEqual([403, 'NO_ORGANIZATION']);
+    expect([chats.status, chats.body.code]).toEqual([403, 'NO_ORGANIZATION']);
+    expect(memberships).toBe(0);
   });
 
   it('rejects a membership whose role belongs to another organization', async () => {

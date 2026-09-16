@@ -155,6 +155,12 @@ Specification and the brand sheet in `docs/specs/`.
   valid for 10 minutes, and the link only happens after the password is confirmed.
 - Profile pictures are ordinary uploads: the file is uploaded like any other, then set as the
   avatar. `/api/v1/avatars/:fileId` is public so pictures can be cached and shown anywhere.
+- `SIGNUP_MODE` decides who ends up inside the organization. `open` (the default, ADR-010) puts
+  everyone who registers into `DEFAULT_ORG_SLUG` - what the exam expects, and what makes a demo
+  usable. `invite` gives a new account nothing but the account: it belongs to no organization
+  until it accepts an invitation, which is bound to the invited e-mail address. **A workspace on a
+  public address wants `invite`.** Under `open`, anyone who finds the sign-up page joins the one
+  organization and can then read the staff directory, the feed and every channel in it.
 - Deactivated accounts lose access immediately, even with an unexpired access token.
 - Login answers identically for unknown emails and wrong passwords, and auth endpoints are
   rate-limited.

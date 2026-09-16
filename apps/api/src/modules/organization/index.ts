@@ -73,7 +73,7 @@ export interface OrganizationModule {
 export function createOrganizationModule(deps: {
   prisma: PrismaClient;
   events: EventBus;
-  config: Pick<Env, 'DEFAULT_ORG_SLUG' | 'DEFAULT_ORG_NAME'>;
+  config: Pick<Env, 'DEFAULT_ORG_SLUG' | 'DEFAULT_ORG_NAME' | 'SIGNUP_MODE'>;
 }): OrganizationModule {
   const { prisma, events, config } = deps;
   const organizations = new PrismaOrganizationRepository(prisma);
@@ -83,9 +83,13 @@ export function createOrganizationModule(deps: {
     defaultOrganization: { slug: config.DEFAULT_ORG_SLUG, name: config.DEFAULT_ORG_NAME },
   });
 
-  events.subscribe<UserRegisteredEvent>(USER_REGISTERED, async (event) => {
-    if (event.subject_id) await service.joinDefaultOrganization(event.subject_id);
-  });
+  // Under "invite", registering gets you an account and nothing else: an invitation, bound to
+  // your e-mail address, is what puts you inside an organization.
+  if (config.SIGNUP_MODE === 'open') {
+    events.subscribe<UserRegisteredEvent>(USER_REGISTERED, async (event) => {
+      if (event.subject_id) await service.joinDefaultOrganization(event.subject_id);
+    });
+  }
 
   return {
     profileVisibility: {
