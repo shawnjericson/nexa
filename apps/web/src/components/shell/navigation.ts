@@ -1,5 +1,4 @@
 import {
-  Bell,
   Hash,
   Home,
   LayoutList,
@@ -29,7 +28,6 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/home', label: 'nav.overview', icon: Home },
       { href: '/feed', label: 'nav.feed', icon: LayoutList },
-      { href: '/notifications', label: 'nav.activity', icon: Bell },
     ],
   },
   {

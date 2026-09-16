@@ -19,6 +19,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/states';
 import { SuggestedChannels } from '@/features/channels/suggested-channels';
 import { useFeed } from '@/features/feed/queries';
+import { openNotifications } from '@/features/notifications/notification-menu';
 import { useOrganization, useOrgKey } from '@/features/organization/organization-provider';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
@@ -43,26 +44,37 @@ function SectionTitle({ children, action }: { children: ReactNode; action?: Reac
 
 function BriefingRow({
   href,
+  onSelect,
   icon: Icon,
   children,
   active,
 }: {
-  href: string;
+  href?: string;
+  /** For rows that open something in place, such as the notifications panel. */
+  onSelect?: () => void;
   icon: LucideIcon;
   children: ReactNode;
   active: boolean;
 }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] hover:bg-surface-subtle"
-    >
+  const className =
+    'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-surface-subtle';
+  const content = (
+    <>
       <Icon className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted')} aria-hidden />
       <span className={cn('flex-1', active ? 'font-medium text-fg' : 'text-muted')}>
         {children}
       </span>
       <ChevronRight className="size-3.5 text-muted" aria-hidden />
+    </>
+  );
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
     </Link>
+  ) : (
+    <button type="button" onClick={onSelect} className={className}>
+      {content}
+    </button>
   );
 }
 
@@ -201,7 +213,7 @@ export function HomeOverview() {
             <BriefingRow href="/messages" icon={MessageSquare} active={unreadMessages > 0}>
               {tn('home.unreadMessages', unreadMessages)}
             </BriefingRow>
-            <BriefingRow href="/notifications" icon={Bell} active={unreadNotifications > 0}>
+            <BriefingRow onSelect={openNotifications} icon={Bell} active={unreadNotifications > 0}>
               {tn('home.unreadNotifications', unreadNotifications)}
             </BriefingRow>
             <BriefingRow href="/feed" icon={Megaphone} active={announcements.length > 0}>

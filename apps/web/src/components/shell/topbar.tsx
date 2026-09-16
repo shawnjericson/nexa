@@ -1,41 +1,15 @@
 'use client';
 
-import { Bell, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { LogoMark } from '@/components/brand/logo';
 import { Kbd } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
-import { useUnreadNotificationCount } from '@/features/notifications/queries';
+import { NotificationBell } from '@/features/notifications/notification-menu';
 import { useI18n } from '@/i18n/provider';
 import { openCommandPalette } from './command-palette';
 import { UserMenu } from './user-menu';
-
-function NotificationsButton() {
-  const { t } = useI18n();
-  const { data } = useUnreadNotificationCount();
-  const unread = (data?.unread_count ?? 0) > 0;
-  const label = unread
-    ? `${t('nav.notifications')} - ${t('shell.unreadNotifications')}`
-    : t('nav.notifications');
-
-  return (
-    <Tooltip content={t('nav.notifications')}>
-      <Button asChild variant="ghost" size="icon" aria-label={label}>
-        <Link href="/notifications" className="relative">
-          <Bell aria-hidden />
-          {/* Restrained unread state: a dot, not a bright count (spec §3.2). */}
-          {unread && (
-            <span
-              aria-hidden
-              className="absolute top-2 right-2 size-2 rounded-full bg-accent ring-2 ring-background"
-            />
-          )}
-        </Link>
-      </Button>
-    </Tooltip>
-  );
-}
 
 export function Topbar() {
   const { t } = useI18n();
@@ -65,7 +39,7 @@ export function Topbar() {
             <Search aria-hidden />
           </Button>
         </Tooltip>
-        <NotificationsButton />
+        <NotificationBell />
         <UserMenu />
       </div>
     </header>
