@@ -4,6 +4,11 @@
  *   pnpm --filter @nexa/api seed:demo -- --org nexa --yes
  *   pnpm --filter @nexa/api seed:demo -- --org nexa --yes --reset   # replace what it made before
  *
+ * A demo that must not touch a real workspace gets an organization of its own, which is the
+ * safest way to run this at all - nothing it writes can reach anyone else's tenant:
+ *
+ *   pnpm --filter @nexa/api seed:demo -- --org demo --create --name "NEXA Demo"  *     --owner you@example.com --yes
+ *
  * Everything it creates is recognisable and reversible: demo people all have an e-mail at
  * DEMO_DOMAIN, and --reset removes exactly those people and everything they wrote. It never
  * touches anyone else's content, and it refuses to run without --yes so nobody seeds a real
@@ -14,6 +19,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { hash } from 'bcryptjs';
+import { SYSTEM_ROLES } from '../src/modules/organization';
 // The application's own client: it reads DATABASE_URL and the TLS settings the same way the
 // server does, so seeding a remote database needs no connection handling of its own.
 import { prisma } from '../src/infrastructure/database/prisma';
@@ -223,19 +229,47 @@ async function main() {
   const rows = await prisma.$queryRaw<{ name: string }[]>`SELECT current_database() AS name`;
   const database = rows[0]?.name ?? '(unknown)';
 
-  const organization = await prisma.organization.findUnique({
+  let organization = await prisma.organization.findUnique({
     where: { slug },
     select: { id: true, name: true },
   });
-  if (!organization)
-    throw new Error(`No organization with slug "${slug}" in database "${database}"`);
+  if (!organization && !has('create')) {
+    throw new Error(
+      `No organization with slug "${slug}" in database "${database}". Add --create to make one.`,
+    );
+  }
 
   console.log(`Database:     ${database}`);
-  console.log(`Organization: ${organization.name} (${slug})`);
+  console.log(
+    organization
+      ? `Organization: ${organization.name} (${slug})`
+      : `Organization: ${arg('name') ?? slug} (${slug}) - will be created`,
+  );
   console.log(`Demo people:  ${PEOPLE.length}, at @${DEMO_DOMAIN}`);
   if (!has('yes')) {
     console.log('\nNothing was written. Add --yes to go ahead.');
     return;
+  }
+
+  // A demo organization of its own is the safest place for invented people: everything below is
+  // scoped to it, so nothing here can appear in a real workspace.
+  if (!organization) {
+    organization = await prisma.organization.create({
+      data: {
+        slug,
+        name: arg('name') ?? slug,
+        roles: {
+          create: SYSTEM_ROLES.map((role) => ({
+            key: role.key,
+            name: role.name,
+            isSystem: true,
+            permissions: { create: role.permissions.map((permissionKey) => ({ permissionKey })) },
+          })),
+        },
+      },
+      select: { id: true, name: true },
+    });
+    console.log(`Created:      organization "${organization.name}"`);
   }
 
   if (has('reset')) {
@@ -265,10 +299,35 @@ async function main() {
 
   const password = process.env.SEED_PASSWORD ?? randomBytes(24).toString('base64url');
   const passwordHash = await hash(password, Number(process.env.BCRYPT_ROUNDS ?? 12));
-  const memberRole = await prisma.role.findUniqueOrThrow({
-    where: { organizationId_key: { organizationId: organization.id, key: 'MEMBER' } },
-    select: { id: true },
-  });
+  const roleId = async (key: 'OWNER' | 'MEMBER') =>
+    (
+      await prisma.role.findUniqueOrThrow({
+        where: { organizationId_key: { organizationId: organization!.id, key } },
+        select: { id: true },
+      })
+    ).id;
+  const memberRole = { id: await roleId('MEMBER') };
+
+  // Someone real has to be able to administer a demo organization, and to look at it at all:
+  // an invented person cannot sign in to it.
+  const ownerEmail = arg('owner');
+  if (ownerEmail) {
+    const real = await prisma.user.findUnique({
+      where: { email: ownerEmail },
+      select: { id: true },
+    });
+    if (!real) throw new Error(`No account with e-mail "${ownerEmail}"`);
+    await prisma.organizationMember.upsert({
+      where: { organizationId_userId: { organizationId: organization.id, userId: real.id } },
+      update: { roleId: await roleId('OWNER') },
+      create: {
+        organizationId: organization.id,
+        userId: real.id,
+        roleId: await roleId('OWNER'),
+      },
+    });
+    console.log(`Owner:        ${ownerEmail}`);
+  }
 
   // ── People ──────────────────────────────────────────────────────────────
   const ids = new Map<string, string>();
@@ -296,7 +355,7 @@ async function main() {
         data: {
           organizationId: organization.id,
           userId: user.id,
-          roleId: memberRole.id,
+          roleId: !ownerEmail && person === PEOPLE[0] ? await roleId('OWNER') : memberRole.id,
           // Spread the joining dates so "new colleagues" is not everyone at once.
           joinedAt: minutesAgo(60 * 24 * Math.floor(1 + random() * 40)),
         },

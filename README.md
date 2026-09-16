@@ -358,6 +358,10 @@ Filling an empty workspace with something to look at:
 pnpm --filter @nexa/api seed:demo -- --org nexa            # says what it would do, writes nothing
 pnpm --filter @nexa/api seed:demo -- --org nexa --yes      # colleagues, departments, posts, channels
 pnpm --filter @nexa/api seed:demo -- --org nexa --yes --reset  # replace what it made before
+
+# Safest of all: give the demo an organization of its own, owned by a real account so you can
+# switch into it. Nothing it writes can reach the workspace people actually use.
+pnpm --filter @nexa/api seed:demo -- --org demo --create --name "NEXA Demo"   --owner you@example.com --yes
 ```
 
 It writes to whatever `DATABASE_URL` points at, prints the database and organization first, and
