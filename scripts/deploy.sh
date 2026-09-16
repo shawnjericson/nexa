@@ -66,7 +66,8 @@ pm2 restart nexa-api nexa-web --update-env
 # so rolling the code back automatically could be worse than stopping for a human.
 say "Checking"
 for attempt in $(seq 1 30); do
-  if curl -fsS --max-time 5 "$API_READY" | grep -q '"status":"ready"'; then
+  # Quiet: the first few attempts are refused while the process is still starting.
+  if curl -fsS --max-time 5 "$API_READY" 2>/dev/null | grep -q '"status":"ready"'; then
     api_ok=1
     break
   fi
