@@ -364,10 +364,31 @@ Both apps run under PM2 behind Nginx: `nexa-api` on port 4100 and `nexa-web` on 
 with its own subdomain and certificate. Nginx proxies `/socket.io/` with the upgrade headers, and
 the API runs with `TRUST_PROXY=1` so rate limits and logs see the real client address.
 
-Updating a running server:
+Pushing to `master` deploys. The workflow in `.github/workflows/ci.yml` first runs the checks
+(formatting, ESLint, TypeScript, the whole test suite against a throwaway PostgreSQL, and both
+builds); only if they pass does it open an SSH session to the server and run `scripts/deploy.sh`
+with the commit it just tested.
+
+The key CI holds cannot do anything else: its line in the server's `authorized_keys` is
+`restrict,command=".../scripts/deploy.sh"`, so it deploys and never opens a shell. The address,
+port, account and key live in the repository secrets `DEPLOY_HOST`, `DEPLOY_PORT`, `DEPLOY_USER`,
+`DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS`.
+
+The same script runs by hand on the server, which is also how to recover if a deploy stops halfway:
 
 ```bash
-git pull --ff-only
+scripts/deploy.sh            # deploy origin/master
+scripts/deploy.sh <full-sha> # or one particular commit
+```
+
+It refuses to run twice at once, and fails loudly if the API does not become ready afterwards. It
+deliberately does not roll the code back on its own: by then the migrations have been applied, and
+undoing half a deploy can leave the server worse off than stopping does.
+
+Step by step, that script does:
+
+```bash
+git fetch origin master && git reset --hard <commit>
 pnpm install --frozen-lockfile
 pnpm --filter @nexa/api db:generate   # the generated client is not in the repository
 pnpm --filter @nexa/api db:deploy     # apply new migrations
@@ -380,6 +401,9 @@ pm2 restart nexa-api nexa-web --update-env
 is ignored by git, so a server that skips this step keeps a client built from an older schema: new
 models are simply `undefined` at runtime, and the first request that touches one fails with
 `Cannot read properties of undefined`.
+
+Production has a database of its own, `nexa_prod`; `nexa` is the development database, so a
+migration tried out on a laptop never touches what people are using.
 
 The production `.env` is not a copy of the development one. On the server PostgreSQL, Redis and
 MongoDB are reached over localhost without TLS (`DATABASE_SSL=false`, no certificate to pin, and
