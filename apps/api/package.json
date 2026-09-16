@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "openapi:export": "tsx scripts/export-openapi.ts"
+    "openapi:export": "tsx scripts/export-openapi.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",

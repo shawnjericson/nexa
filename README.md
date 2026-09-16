@@ -346,6 +346,20 @@ await api.post('/api/v1/posts', { content: 'Team outing', attachment_ids: [data.
 | `pnpm typecheck`            | TypeScript checks       |
 | `pnpm lint` / `pnpm format` | ESLint / Prettier       |
 
+Filling an empty workspace with something to look at:
+
+```bash
+pnpm --filter @nexa/api seed:demo -- --org nexa            # says what it would do, writes nothing
+pnpm --filter @nexa/api seed:demo -- --org nexa --yes      # colleagues, departments, posts, channels
+pnpm --filter @nexa/api seed:demo -- --org nexa --yes --reset  # replace what it made before
+```
+
+It writes to whatever `DATABASE_URL` points at, prints the database and organization first, and
+does nothing at all without `--yes`. Everyone it invents has an e-mail at `demo.nexa.local`, which
+is what `--reset` deletes: nobody else's content is touched. Run twice, it adds nothing the second
+time. Demo accounts get a random password unless `SEED_PASSWORD` is set - they exist to be seen,
+not signed in to.
+
 Tests run against the database in `TEST_DATABASE_URL`. Its name must end in `_test`, because tests
 truncate tables. Migrations are applied to it automatically before the suite starts.
 
