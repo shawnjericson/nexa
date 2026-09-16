@@ -17,7 +17,7 @@ import { Topbar } from './topbar';
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
+    <div className="fixed inset-0 flex overflow-hidden bg-background">
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-surface px-3 py-2 text-sm focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 /** Loading placeholder with the shell's shape, so nothing jumps when data arrives. */
 export function ShellSkeleton() {
   return (
-    <div className="flex h-dvh overflow-hidden bg-background" aria-busy>
+    <div className="fixed inset-0 flex overflow-hidden bg-background" aria-busy>
       <div className="hidden w-16 shrink-0 flex-col gap-3 border-r border-border bg-sidebar p-4 md:flex lg:w-60">
         <Skeleton className="h-7 w-24" />
         {Array.from({ length: 7 }, (_, index) => (

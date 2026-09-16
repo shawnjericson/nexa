@@ -17,7 +17,7 @@ export function Tooltip({
         <TooltipPrimitive.Content
           side={side}
           sideOffset={6}
-          className="z-50 rounded-md bg-fg px-2 py-1 text-xs font-medium text-background shadow-sm"
+          className="animate-panel z-50 rounded-md bg-fg px-2 py-1 text-xs font-medium text-background shadow-sm"
         >
           {content}
         </TooltipPrimitive.Content>

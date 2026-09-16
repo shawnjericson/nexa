@@ -22,7 +22,7 @@ export function PopoverContent({
         sideOffset={sideOffset}
         collisionPadding={12}
         className={cn(
-          'z-50 overflow-hidden rounded-xl border border-border bg-surface text-sm text-fg shadow-xl',
+          'animate-panel z-50 overflow-hidden rounded-xl border border-border bg-surface text-sm text-fg shadow-xl',
           className,
         )}
         {...props}

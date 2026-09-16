@@ -10,8 +10,7 @@ export const MenuSub = DropdownMenu.Sub;
 export const MenuRadioGroup = DropdownMenu.RadioGroup;
 
 const PANEL =
-  'z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-surface p-1 text-sm text-fg shadow-lg ' +
-  'data-[state=open]:animate-in data-[state=closed]:animate-out';
+  'animate-panel z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-surface p-1 text-sm text-fg shadow-lg';
 
 const ITEM =
   'relative flex h-8 cursor-default select-none items-center gap-2 rounded-md px-2 text-[13px] outline-none ' +

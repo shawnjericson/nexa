@@ -116,3 +116,112 @@
     }
   }
 }
+
+/*
+ * Panels that appear on demand - menus, popovers, dialogs, tooltips - grow out of whatever opened
+ * them instead of snapping into place (spec §14). Radix puts data-state and data-side on the
+ * content element and gives us its transform origin, so a component only has to say
+ * `animate-panel`. The reduced-motion rule in @layer base already cuts these to nothing.
+ */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translate(var(--panel-x, 0), var(--panel-y, 0));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes panel-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98) translate(var(--panel-x, 0), var(--panel-y, 0));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-panel {
+  transform-origin: var(--radix-popper-transform-origin, center);
+
+  &[data-side='top'] {
+    --panel-y: 0.25rem;
+  }
+  &[data-side='bottom'] {
+    --panel-y: -0.25rem;
+  }
+  &[data-side='left'] {
+    --panel-x: 0.25rem;
+  }
+  &[data-side='right'] {
+    --panel-x: -0.25rem;
+  }
+
+  &[data-state='open'],
+  &[data-state='delayed-open'] {
+    animation: panel-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  &[data-state='closed'] {
+    animation: panel-out 100ms ease-in;
+  }
+}
+
+/** Dialogs: the overlay fades, the dialog rises on a phone and scales in on a desktop. */
+@utility animate-overlay {
+  &[data-state='open'] {
+    animation: fade-in 140ms ease-out;
+  }
+  &[data-state='closed'] {
+    animation: fade-out 120ms ease-in;
+  }
+}
+
+@utility animate-dialog {
+  /* A centred dialog is positioned with a transform, so on desktop only the opacity may move. */
+  &[data-state='open'] {
+    animation: fade-in 140ms ease-out;
+  }
+  &[data-state='closed'] {
+    animation: fade-out 120ms ease-in;
+  }
+
+  /* Below sm it is a sheet anchored to the bottom, with no transform of its own to fight. */
+  @media (width < 40rem) {
+    &[data-state='open'] {
+      animation: sheet-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  }
+}

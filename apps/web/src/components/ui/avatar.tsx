@@ -48,7 +48,7 @@ export function Avatar({
 }) {
   const [failed, setFailed] = useState(false);
   return (
-    <span className={cn('relative inline-flex shrink-0', className)}>
+    <span className={cn('relative inline-flex shrink-0 rounded-full', className)}>
       {src && !failed ? (
         // Avatars come from arbitrary hosts, so a plain img (decorative: the name is shown nearby).
         <img

@@ -30,10 +30,10 @@ export function DialogContent({
   const { t } = useI18n();
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-overlay" />
+      <DialogPrimitive.Overlay className="animate-overlay fixed inset-0 z-40 bg-overlay" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed z-50 flex max-h-[90dvh] flex-col overflow-hidden border border-border bg-surface shadow-xl',
+          'animate-dialog fixed z-50 flex max-h-[90dvh] flex-col overflow-hidden border border-border bg-surface shadow-xl',
           'inset-x-0 bottom-0 rounded-t-xl sm:inset-auto sm:top-1/2 sm:left-1/2 sm:w-full sm:max-w-lg',
           'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl',
           className,

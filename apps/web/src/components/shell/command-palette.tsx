@@ -13,11 +13,11 @@ import {
   Plus,
   Search,
   SunMoon,
-  UserRound,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { Avatar } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { conversationTitle } from '@/features/chat/conversation-display';
@@ -48,13 +48,16 @@ const isUser = (user: UserRef | null): user is UserRef => Boolean(user);
 
 function Item({
   icon: Icon,
+  leading,
   onSelect,
   children,
   value,
   keywords,
   hint,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  /** Shown instead of the icon - a face, where the face is the point. */
+  leading?: ReactNode;
   onSelect(): void;
   children: ReactNode;
   value?: string;
@@ -68,7 +71,7 @@ function Item({
       onSelect={onSelect}
       className="flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg data-[selected=true]:bg-surface-subtle"
     >
-      <Icon className="size-4 shrink-0 text-muted" aria-hidden />
+      {leading ?? (Icon && <Icon className="size-4 shrink-0 text-muted" aria-hidden />)}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {hint && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted">{hint}</span>}
     </Command.Item>
@@ -176,7 +179,7 @@ export function CommandPalette() {
             {people.map((user) => (
               <Item
                 key={user.id}
-                icon={UserRound}
+                leading={<Avatar name={user.display_name} src={user.avatar_url} size="sm" />}
                 value={`person:${user.id}`}
                 keywords={always}
                 hint={`@${user.username}`}
