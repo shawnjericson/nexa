@@ -5,6 +5,8 @@ export const FileErrors = {
   notFound: () => new AppError(404, 'FILE_NOT_FOUND', 'File not found'),
   notReady: () =>
     new AppError(409, 'FILE_NOT_READY', 'The file has not finished uploading and being checked'),
+  notAnImage: () =>
+    new AppError(422, 'NOT_AN_IMAGE', 'Only a JPEG, PNG, GIF or WebP picture can be used'),
   uploadIncomplete: () =>
     new AppError(409, 'UPLOAD_INCOMPLETE', 'Nothing has been uploaded to the upload URL yet'),
   uploadFailed: (reason: string) =>

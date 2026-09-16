@@ -21,4 +21,33 @@ export const IdentityErrors = {
   invalidCurrentPassword: () =>
     new AppError(400, 'INVALID_CURRENT_PASSWORD', 'Current password is incorrect'),
   userNotFound: () => new AppError(404, 'USER_NOT_FOUND', 'User not found'),
+
+  // ─── External sign-in ──────────────────────────────────────────────────
+  ssoNotConfigured: () =>
+    new AppError(404, 'SSO_NOT_CONFIGURED', 'Signing in with this provider is not enabled'),
+  invalidExternalToken: () =>
+    new AppError(
+      401,
+      'INVALID_EXTERNAL_TOKEN',
+      'The sign-in with the provider could not be verified',
+    ),
+  externalEmailUnverified: () =>
+    new AppError(
+      403,
+      'EXTERNAL_EMAIL_UNVERIFIED',
+      'The provider has not verified this email address',
+    ),
+  accountLinkRequired: (linkToken: string, email: string) =>
+    new AppError(
+      409,
+      'ACCOUNT_LINK_REQUIRED',
+      'An account with this email already exists; confirm its password to connect the provider',
+      { link_token: linkToken, email },
+    ),
+  invalidLinkToken: () =>
+    new AppError(
+      401,
+      'INVALID_LINK_TOKEN',
+      'The connection request has expired; sign in with the provider again',
+    ),
 };

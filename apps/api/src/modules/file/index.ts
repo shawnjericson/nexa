@@ -1,11 +1,13 @@
-import type { RequestHandler, Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { logger } from '../../infrastructure/logger/logger';
 import type { ObjectStorage } from '../../infrastructure/storage/object-storage';
+import type { AvatarWriter } from '../identity';
 import { FileService, type FilePolicy } from './application/file.service';
 import type { FileKind, FileOwner, FileView } from './domain/file';
 import { kindOf } from './domain/file-types';
 import { PrismaFileRepository } from './infrastructure/prisma-file.repository';
+import { createAvatarRouter, createPublicAvatarRouter } from './presentation/avatar.routes';
 import './presentation/openapi';
 import { createFileRouter } from './presentation/routes';
 
@@ -32,8 +34,10 @@ export interface FileDirectory {
 }
 
 export interface FileModule {
-  /** Upload endpoints, mounted under /api/v1. */
+  /** Upload and avatar endpoints, mounted under /api/v1. */
   router: Router;
+  /** Avatar pictures for <img> tags: no authentication, mounted before the global rate limit. */
+  publicRouter: Router;
   directory: FileDirectory;
 }
 
@@ -46,6 +50,10 @@ export function createFileModule(deps: {
   policy: FilePolicy;
   /** requireAuth + requireOrganization. */
   guard: RequestHandler[];
+  /** Identity's write access to avatars. */
+  avatars: AvatarWriter;
+  /** Public address of the API, for avatar URLs. */
+  publicUrl: string;
   /** Start the periodic cleanup of abandoned uploads and orphans (the server does; tests don't). */
   backgroundJobs?: boolean;
 }): FileModule {
@@ -67,8 +75,20 @@ export function createFileModule(deps: {
     }, CLEANUP_INTERVAL_MS).unref();
   }
 
+  const router = Router();
+  router.use(createFileRouter({ files, guard: deps.guard }));
+  router.use(
+    createAvatarRouter({
+      files,
+      avatars: deps.avatars,
+      publicUrl: deps.publicUrl.replace(/\/+$/, ''),
+      guard: deps.guard,
+    }),
+  );
+
   return {
-    router: createFileRouter({ files, guard: deps.guard }),
+    router,
+    publicRouter: createPublicAvatarRouter({ files }),
     directory: {
       requireAttachable: async (owner, ids) =>
         (await files.requireAttachable(owner, ids)).map((file) => ({

@@ -25,6 +25,24 @@ export const CreateUploadBody = z
 
 export const FileParams = z.object({ id: z.uuid() });
 
+export const SetAvatarBody = z
+  .object({
+    file_id: z.uuid().openapi({
+      description: 'One of your READY uploads: a JPEG, PNG, GIF or WebP picture of at most 5 MB',
+    }),
+  })
+  .openapi('SetAvatarRequest');
+
+export type SetAvatarInput = z.infer<typeof SetAvatarBody>;
+
+export const AvatarResponse = z
+  .object({
+    avatar_url: z.string().nullable().openapi({
+      description: 'Serves the picture to anyone (for <img> tags) while it is your avatar',
+    }),
+  })
+  .openapi('AvatarResponse');
+
 /** Attachment ids in post and message requests. */
 export const AttachmentIds = z
   .array(z.uuid())

@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import { successResponse } from '../../../shared/http/openapi';
+import { errorResponses, registry, successResponse } from '../../../shared/http/openapi';
 import { registerRoute } from '../../../shared/http/openapi-route';
-import { CreateUploadBody, CreateUploadResponse, FileParams, FileResponse } from './schemas';
+import {
+  AvatarResponse,
+  CreateUploadBody,
+  CreateUploadResponse,
+  FileParams,
+  FileResponse,
+  SetAvatarBody,
+} from './schemas';
 
 const headers = z.object({
   'x-organization-id': z.uuid().optional().openapi({
@@ -50,4 +57,38 @@ registerRoute({
   params: FileParams,
   response: successResponse(FileResponse),
   errors: [400, 401, 403, 404],
+});
+
+registerRoute({
+  method: 'put',
+  path: '/api/v1/users/me/avatar',
+  tag: 'Users',
+  summary: 'Use one of your uploaded pictures as your avatar',
+  description:
+    'Upload the picture with /files first. The answered avatar_url serves the picture publicly ' +
+    'while it is your avatar; the previous picture is cleaned up later.',
+  headers,
+  body: SetAvatarBody,
+  response: successResponse(AvatarResponse),
+  errors: [400, 401, 403, 404, 409, 413, 422],
+});
+registerRoute({
+  method: 'delete',
+  path: '/api/v1/users/me/avatar',
+  tag: 'Users',
+  summary: 'Remove your avatar',
+  headers,
+  response: successResponse(AvatarResponse),
+  errors: [401, 403],
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/avatars/{id}',
+  tags: ['Users'],
+  summary: 'An avatar picture',
+  description:
+    'Public, for <img> tags: redirects to a short-lived storage URL, cacheable for an hour. ' +
+    "Only files chosen as someone's avatar are served.",
+  request: { params: FileParams },
+  responses: { 302: { description: 'Redirect to the picture' }, ...errorResponses(404) },
 });

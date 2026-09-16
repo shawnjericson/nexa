@@ -1,10 +1,14 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import { AppError } from '../../../shared/errors/app-error';
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import type { AuthContext } from '../domain/auth-context';
 import { USER_REGISTERED, type UserRegisteredEvent } from '../domain/events';
 import { IdentityErrors } from '../domain/identity-errors';
 import type {
   AccessTokenService,
+  AccountLinkTokens,
+  ExternalIdentityVerifier,
+  ExternalProfile,
   NewRefreshToken,
   PasswordHasher,
   RefreshTokenRepository,
@@ -36,10 +40,28 @@ export interface AuthServiceDeps {
   accessTokens: AccessTokenService;
   events: EventBus;
   settings: AuthSettings;
+  /** Google sign-in; null when it is not configured. */
+  externalIdentity?: ExternalIdentityVerifier | null;
+  linkTokens: AccountLinkTokens;
   now?: () => Date;
 }
 
 const DAY_MS = 86_400_000;
+const USERNAME_ATTEMPTS = 6;
+
+/** Usernames to try for an account created from a provider: the email's local part, then variants. */
+function usernameCandidates(localPart: string): string[] {
+  const base = localPart
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .replace(/^[._-]+/, '')
+    .slice(0, 24);
+  const stem = base.length >= 3 ? base : `${base}user`;
+  return [
+    stem,
+    ...Array.from({ length: USERNAME_ATTEMPTS - 1 }, () => `${stem}${randomInt(1000, 10_000)}`),
+  ];
+}
 
 export class AuthService {
   private readonly now: () => Date;
@@ -62,13 +84,7 @@ export class AuthService {
       displayName: input.displayName ?? input.username,
       passwordHash,
     });
-
-    const event: UserRegisteredEvent = createEvent(USER_REGISTERED, {
-      actor_id: user.id,
-      subject_id: user.id,
-      metadata: { username: user.username },
-    });
-    await this.deps.events.publish(event);
+    await this.publishRegistered(user);
     return user;
   }
 
@@ -82,11 +98,56 @@ export class AuthService {
     const passwordHash = user?.passwordHash ?? (await this.getDummyHash());
     const passwordMatches = await this.deps.passwords.verify(input.password, passwordHash);
     if (!user || !passwordMatches) throw IdentityErrors.invalidCredentials();
-    if (user.status !== 'ACTIVE') throw IdentityErrors.accountDeactivated();
+    return this.signIn(user, client);
+  }
 
-    const tokens = await this.startSession(user.id, client);
-    const updated = await this.deps.users.recordLogin(user.id, this.now());
-    return { user: updated, tokens };
+  /**
+   * Signs in with a provider's ID token (ADR-020). A connected identity signs straight in and a
+   * new email gets an account. An email that already belongs to an account must prove that
+   * account's password first (linkExternal): registration doesn't verify emails, so anyone could
+   * have registered it in advance to take over the provider sign-in (pre-hijacking).
+   */
+  async loginWithExternal(
+    idToken: string,
+    nonce: string,
+    client: ClientInfo,
+  ): Promise<{ user: User; tokens: AuthTokens; created: boolean }> {
+    const verifier = this.deps.externalIdentity;
+    if (!verifier) throw IdentityErrors.ssoNotConfigured();
+    const profile = await verifier.verify(idToken, nonce);
+
+    const connected = await this.deps.users.findByIdentity(profile.provider, profile.subject);
+    if (connected) return { ...(await this.signIn(connected, client)), created: false };
+
+    if (!profile.emailVerified) throw IdentityErrors.externalEmailUnverified();
+    if (await this.deps.users.findByEmail(profile.email)) {
+      throw IdentityErrors.accountLinkRequired(
+        await this.deps.linkTokens.issue(profile),
+        profile.email,
+      );
+    }
+    const user = await this.createExternalUser(profile);
+    return { ...(await this.signIn(user, client)), created: true };
+  }
+
+  /** Connects a verified provider sign-in to the existing account once its password is right. */
+  async linkExternal(
+    linkToken: string,
+    password: string,
+    client: ClientInfo,
+  ): Promise<{ user: User; tokens: AuthTokens }> {
+    const profile = await this.deps.linkTokens.verify(linkToken);
+    const user = await this.deps.users.findByEmail(profile.email);
+    const passwordHash = user?.passwordHash ?? (await this.getDummyHash());
+    const passwordMatches = await this.deps.passwords.verify(password, passwordHash);
+    if (!user || !passwordMatches) throw IdentityErrors.invalidCredentials();
+
+    await this.deps.users.linkIdentity(user.id, {
+      provider: profile.provider,
+      subject: profile.subject,
+      email: profile.email,
+    });
+    return this.signIn(user, client);
   }
 
   async refresh(refreshToken: string, client: ClientInfo): Promise<AuthTokens> {
@@ -149,6 +210,52 @@ export class AuthService {
       await this.deps.passwords.hash(input.newPassword),
     );
     await this.deps.refreshTokens.revokeAllForUser(user.id, this.now(), auth.sessionId);
+  }
+
+  private async signIn(
+    user: User,
+    client: ClientInfo,
+  ): Promise<{ user: User; tokens: AuthTokens }> {
+    if (user.status !== 'ACTIVE') throw IdentityErrors.accountDeactivated();
+    const tokens = await this.startSession(user.id, client);
+    const updated = await this.deps.users.recordLogin(user.id, this.now());
+    return { user: updated, tokens };
+  }
+
+  private async createExternalUser(profile: ExternalProfile): Promise<User> {
+    // Nobody knows this password: the account signs in through the provider.
+    const passwordHash = await this.deps.passwords.hash(randomUUID());
+    const localPart = profile.email.split('@')[0] ?? '';
+    for (const username of usernameCandidates(localPart)) {
+      try {
+        const user = await this.deps.users.createWithIdentity(
+          {
+            email: profile.email,
+            username,
+            displayName: profile.name ?? (localPart || username),
+            passwordHash,
+            avatarUrl: profile.picture,
+          },
+          { provider: profile.provider, subject: profile.subject, email: profile.email },
+        );
+        await this.publishRegistered(user);
+        return user;
+      } catch (err) {
+        if (err instanceof AppError && err.code === 'USERNAME_TAKEN') continue;
+        throw err;
+      }
+    }
+    throw IdentityErrors.usernameTaken();
+  }
+
+  /** New accounts join the default organization through this event (ADR-012). */
+  private async publishRegistered(user: User): Promise<void> {
+    const event: UserRegisteredEvent = createEvent(USER_REGISTERED, {
+      actor_id: user.id,
+      subject_id: user.id,
+      metadata: { username: user.username },
+    });
+    await this.deps.events.publish(event);
   }
 
   private async startSession(userId: string, client: ClientInfo): Promise<AuthTokens> {

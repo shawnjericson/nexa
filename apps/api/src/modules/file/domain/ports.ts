@@ -13,6 +13,8 @@ export interface FileRepository {
   create(file: NewFile): Promise<FileRecord>;
   findById(organizationId: string, id: string): Promise<FileRecord | null>;
   findMany(organizationId: string, ids: readonly string[]): Promise<FileRecord[]>;
+  /** The READY file when someone uses it as their avatar; null for any other file. */
+  findAvatar(id: string): Promise<FileRecord | null>;
   /** The person's PENDING uploads created since `since`. */
   countPending(uploadedById: string, since: Date): Promise<number>;
   /** Only moves a PENDING file; null when it is no longer pending (someone else decided first). */
@@ -22,13 +24,14 @@ export interface FileRepository {
   /** PENDING uploads created before `before`, oldest first. */
   listStalePending(before: Date, take: number): Promise<FileRecord[]>;
   /**
-   * READY files uploaded before `before` that no post or message references, and FAILED files
-   * created before it.
+   * READY files uploaded before `before` that no post, message or avatar references, and FAILED
+   * files created before it.
    */
   listPurgeable(before: Date, take: number): Promise<FileRecord[]>;
   /**
-   * Deletes the record unless a post or message references it - the foreign keys decide, so a
-   * reference added concurrently always wins. Returns whether it was deleted.
+   * Deletes the record unless a post, message or avatar references it - for attachments the
+   * foreign keys decide, so a reference added concurrently always wins. Returns whether it was
+   * deleted.
    */
   deleteUnreferenced(id: string): Promise<boolean>;
 }

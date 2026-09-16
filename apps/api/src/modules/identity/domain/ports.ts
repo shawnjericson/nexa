@@ -16,6 +16,13 @@ export interface UpdateProfileData {
   bio?: string | null;
 }
 
+/** An external sign-in connected to an account. */
+export interface ExternalIdentity {
+  provider: string;
+  subject: string;
+  email: string;
+}
+
 /** What other modules may know about a user (authors, members, invitees). */
 export interface UserSummary {
   id: string;
@@ -40,6 +47,14 @@ export interface UserDirectory {
   ): Promise<SearchPage<UserSummary>>;
 }
 
+/**
+ * Lets the File module make an uploaded picture someone's avatar: Identity owns users, the File
+ * module owns the picture. `null` removes the avatar.
+ */
+export interface AvatarWriter {
+  set(userId: string, avatar: { fileId: string; url: string } | null): Promise<void>;
+}
+
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
@@ -47,10 +62,19 @@ export interface UserRepository {
   findSummaryByEmail(email: string): Promise<UserSummary | null>;
   /** Throws IdentityErrors.emailTaken / usernameTaken on a unique violation. */
   create(data: CreateUserData): Promise<User>;
+  /** Creates the account together with its external sign-in. Same errors as create. */
+  createWithIdentity(
+    data: CreateUserData & { avatarUrl: string | null },
+    identity: ExternalIdentity,
+  ): Promise<User>;
   /** Throws IdentityErrors.usernameTaken when the new username is taken. */
   updateProfile(id: string, data: UpdateProfileData): Promise<User>;
   updatePasswordHash(id: string, passwordHash: string): Promise<void>;
   recordLogin(id: string, at: Date): Promise<User>;
+  findByIdentity(provider: string, subject: string): Promise<User | null>;
+  /** Idempotent: connecting the same identity again changes nothing. */
+  linkIdentity(userId: string, identity: ExternalIdentity): Promise<void>;
+  updateAvatar(id: string, avatar: { fileId: string; url: string } | null): Promise<void>;
 }
 
 export interface RefreshTokenRecord {
@@ -93,6 +117,35 @@ export interface AccessTokenService {
   issue(context: AuthContext): Promise<{ token: string; expiresIn: number }>;
   /** Throws IdentityErrors.invalidToken / tokenExpired. */
   verify(token: string): Promise<AuthContext>;
+}
+
+/** What an identity provider vouches for, once its token has been verified. */
+export interface ExternalProfile {
+  provider: 'google';
+  subject: string;
+  email: string;
+  emailVerified: boolean;
+  name: string | null;
+  /** An https picture URL, when the provider has one. */
+  picture: string | null;
+}
+
+export interface ExternalIdentityVerifier {
+  /**
+   * Checks an ID token: signature, issuer, audience, expiry and the nonce of the sign-in request.
+   * Throws IdentityErrors.invalidExternalToken otherwise.
+   */
+  verify(idToken: string, nonce: string): Promise<ExternalProfile>;
+}
+
+/**
+ * Short-lived proof that someone signed in with a provider, while they confirm the password of
+ * the existing account with the same email.
+ */
+export interface AccountLinkTokens {
+  issue(profile: ExternalProfile): Promise<string>;
+  /** Throws IdentityErrors.invalidLinkToken. */
+  verify(token: string): Promise<ExternalProfile>;
 }
 
 /**

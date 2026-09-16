@@ -223,6 +223,66 @@
           "password"
         ]
       },
+      "ExternalLoginResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LoginResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "boolean",
+                "description": "Whether this sign-in created the account"
+              }
+            },
+            "required": [
+              "created"
+            ]
+          }
+        ]
+      },
+      "GoogleSignInRequest": {
+        "type": "object",
+        "properties": {
+          "id_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "description": "The ID token Google returned for this sign-in"
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 256,
+            "description": "The nonce sent in the authorization request; the token must carry it"
+          }
+        },
+        "required": [
+          "id_token",
+          "nonce"
+        ]
+      },
+      "LinkAccountRequest": {
+        "type": "object",
+        "properties": {
+          "link_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "From the ACCOUNT_LINK_REQUIRED error; valid for 10 minutes"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "link_token",
+          "password"
+        ]
+      },
       "RefreshTokenRequest": {
         "type": "object",
         "properties": {
@@ -875,6 +935,32 @@
           "filename",
           "content_type",
           "size"
+        ]
+      },
+      "AvatarResponse": {
+        "type": "object",
+        "properties": {
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Serves the picture to anyone (for <img> tags) while it is your avatar"
+          }
+        },
+        "required": [
+          "avatar_url"
+        ]
+      },
+      "SetAvatarRequest": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "One of your READY uploads: a JPEG, PNG, GIF or WebP picture of at most 5 MB"
+          }
+        },
+        "required": [
+          "file_id"
         ]
       },
       "ConversationSummary": {
@@ -2321,6 +2407,195 @@
         }
       }
     },
+    "/api/v1/auth/oauth/google": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in with a Google ID token",
+        "description": "The token must be issued for this server's GOOGLE_CLIENT_ID and carry the nonce of the authorization request. A new email gets an account (joining the default organization). If the email already has an account, answers 409 ACCOUNT_LINK_REQUIRED with a `link_token`: confirm that account's password with /auth/oauth/link to connect Google. 404 SSO_NOT_CONFIGURED when Google sign-in is off.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens and profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalLoginResult"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with existing data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/oauth/link": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Connect Google to an existing account by confirming its password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens and profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/LoginResult"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/refresh": {
       "post": {
         "tags": [
@@ -2540,7 +2815,7 @@
           "Users"
         ],
         "summary": "Update username, display name, avatar or bio",
-        "description": "Also served under `/api` without the `/v1` segment (exam contract, ADR-010).",
+        "description": "Setting avatar_url replaces an uploaded avatar. Also served under `/api` without the `/v1` segment (exam contract, ADR-010).",
         "security": [
           {
             "bearerAuth": []
@@ -4884,6 +5159,245 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/avatar": {
+      "put": {
+        "summary": "Use one of your uploaded pictures as your avatar",
+        "description": "Upload the picture with /files first. The answered avatar_url serves the picture publicly while it is your avatar; the previous picture is cleaned up later.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Active organization. Optional when you belong to exactly one organization."
+            },
+            "required": false,
+            "description": "Active organization. Optional when you belong to exactly one organization.",
+            "name": "x-organization-id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAvatarRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Use one of your uploaded pictures as your avatar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AvatarResponse"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with existing data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Well-formed but rejected, e.g. a file whose content is not its declared type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove your avatar",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Active organization. Optional when you belong to exactly one organization."
+            },
+            "required": false,
+            "description": "Active organization. Optional when you belong to exactly one organization.",
+            "name": "x-organization-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove your avatar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AvatarResponse"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/avatars/{id}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "An avatar picture",
+        "description": "Public, for <img> tags: redirects to a short-lived storage URL, cacheable for an hour. Only files chosen as someone's avatar are served.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the picture"
           },
           "404": {
             "description": "Not found",

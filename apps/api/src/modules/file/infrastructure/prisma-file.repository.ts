@@ -41,6 +41,13 @@ export class PrismaFileRepository implements FileRepository {
     });
   }
 
+  findAvatar(id: string): Promise<FileRecord | null> {
+    return this.prisma.file.findFirst({
+      where: { id, status: 'READY', avatarOf: { some: {} } },
+      select: FILE_SELECT,
+    });
+  }
+
   countPending(uploadedById: string, since: Date): Promise<number> {
     return this.prisma.file.count({
       where: { uploadedById, status: 'PENDING', createdAt: { gte: since } },
@@ -86,6 +93,7 @@ export class PrismaFileRepository implements FileRepository {
             uploadedAt: { lt: before },
             postAttachments: { none: {} },
             messageAttachments: { none: {} },
+            avatarOf: { none: {} },
           },
           { status: 'FAILED', createdAt: { lt: before } },
         ],
@@ -98,10 +106,14 @@ export class PrismaFileRepository implements FileRepository {
 
   async deleteUnreferenced(id: string): Promise<boolean> {
     try {
-      await this.prisma.file.delete({ where: { id } });
-      return true;
+      // Attachments block the delete through their foreign keys; avatars (whose foreign key
+      // clears itself) are excluded here instead.
+      const { count } = await this.prisma.file.deleteMany({
+        where: { id, avatarOf: { none: {} } },
+      });
+      return count === 1;
     } catch (err) {
-      if (isForeignKeyViolation(err) || isRecordNotFound(err)) return false;
+      if (isForeignKeyViolation(err)) return false;
       throw err;
     }
   }

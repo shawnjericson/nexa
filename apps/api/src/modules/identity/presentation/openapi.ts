@@ -6,7 +6,11 @@ import {
   successResponse,
 } from '../../../shared/http/openapi';
 import {
+  AuthTokens,
   ChangePasswordBody,
+  ExternalLoginResult,
+  GoogleSignInBody,
+  LinkAccountBody,
   LoginBody,
   LoginResult,
   Me,
@@ -15,7 +19,6 @@ import {
   UpdateMeBody,
   UserIdParams,
   UserProfile,
-  AuthTokens,
 } from './schemas';
 
 const EXAM_NOTE = 'Also served under `/api` without the `/v1` segment (exam contract, ADR-010).';
@@ -40,6 +43,39 @@ registry.registerPath({
   summary: 'Log in with email and password',
   description: EXAM_NOTE,
   request: { body: { content: jsonContent(LoginBody) } },
+  responses: {
+    200: { description: 'Tokens and profile', content: jsonContent(successResponse(LoginResult)) },
+    ...errorResponses(400, 401, 403, 429),
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/oauth/google',
+  tags: ['Auth'],
+  summary: 'Sign in with a Google ID token',
+  description:
+    "The token must be issued for this server's GOOGLE_CLIENT_ID and carry the nonce of the " +
+    'authorization request. A new email gets an account (joining the default organization). ' +
+    'If the email already has an account, answers 409 ACCOUNT_LINK_REQUIRED with a `link_token`: ' +
+    "confirm that account's password with /auth/oauth/link to connect Google. 404 " +
+    'SSO_NOT_CONFIGURED when Google sign-in is off.',
+  request: { body: { content: jsonContent(GoogleSignInBody) } },
+  responses: {
+    200: {
+      description: 'Tokens and profile',
+      content: jsonContent(successResponse(ExternalLoginResult)),
+    },
+    ...errorResponses(400, 401, 403, 404, 409, 429),
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/oauth/link',
+  tags: ['Auth'],
+  summary: 'Connect Google to an existing account by confirming its password',
+  request: { body: { content: jsonContent(LinkAccountBody) } },
   responses: {
     200: { description: 'Tokens and profile', content: jsonContent(successResponse(LoginResult)) },
     ...errorResponses(400, 401, 403, 429),
@@ -98,7 +134,7 @@ registry.registerPath({
   path: '/api/v1/users/me',
   tags: ['Users'],
   summary: 'Update username, display name, avatar or bio',
-  description: EXAM_NOTE,
+  description: `Setting avatar_url replaces an uploaded avatar. ${EXAM_NOTE}`,
   security: bearerAuth,
   request: { body: { content: jsonContent(UpdateMeBody) } },
   responses: {

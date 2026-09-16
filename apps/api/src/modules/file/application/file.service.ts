@@ -208,6 +208,28 @@ export class FileService {
     return new Map(entries);
   }
 
+  /** Largest picture accepted as an avatar. */
+  static readonly AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+  /** The caller's own READY picture, small enough to be an avatar. */
+  async requireAvatarPicture(actor: OrganizationActor, id: string): Promise<FileRecord> {
+    const file = await this.getOwn(actor, id);
+    if (file.status !== 'READY') throw FileErrors.notReady();
+    if (kindOf(file.mimeType) !== 'image') throw FileErrors.notAnImage();
+    if (file.size > FileService.AVATAR_MAX_BYTES) {
+      throw FileErrors.tooLarge(FileService.AVATAR_MAX_BYTES);
+    }
+    return file;
+  }
+
+  /** A download URL for a file that is someone's avatar; null for every other file. */
+  async avatarDownloadUrl(id: string): Promise<string | null> {
+    if (!this.deps.storage) return null;
+    const file = await this.deps.files.findAvatar(id);
+    if (!file) return null;
+    return (await this.views([file])).get(file.id)?.url ?? null;
+  }
+
   /**
    * Background job (risk register 13: orphan files):
    * - uploads never completed are marked FAILED and their object deleted;

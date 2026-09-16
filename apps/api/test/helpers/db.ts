@@ -20,6 +20,7 @@ const TABLES = [
   'comments',
   'posts',
   'refresh_tokens',
+  'user_identities',
   'organization_members',
   'role_permissions',
   'roles',

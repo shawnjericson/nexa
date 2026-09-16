@@ -15,6 +15,9 @@ const csv = z.string().transform((value) =>
 
 const bool = z.enum(['true', 'false']).transform((value) => value === 'true');
 
+// `NAME=` in a .env file means "not set".
+const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
+
 const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -51,6 +54,12 @@ const EnvSchema = z
 
     DEFAULT_ORG_SLUG: z.string().min(1).default('nexa'),
     DEFAULT_ORG_NAME: z.string().min(1).default('NEXA'),
+
+    // Public address of the API, used in links it hands out (avatar pictures). Defaults to
+    // http://localhost:PORT.
+    PUBLIC_API_URL: z.preprocess(emptyToUndefined, z.url().optional()),
+    // Google sign-in: the OAuth client ID tokens must be issued for. Unset disables it.
+    GOOGLE_CLIENT_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 
     // Object storage for files: any S3-compatible service, Cloudflare R2 in production (ADR-017).
     // Without a bucket, uploads are disabled.

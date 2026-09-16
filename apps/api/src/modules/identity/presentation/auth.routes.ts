@@ -6,10 +6,14 @@ import type { AuthService, ClientInfo } from '../application/auth.service';
 import { requireAuthContext } from './require-auth';
 import {
   ChangePasswordBody,
+  GoogleSignInBody,
+  LinkAccountBody,
   LoginBody,
   RefreshBody,
   RegisterBody,
   type ChangePasswordInput,
+  type GoogleSignInInput,
+  type LinkAccountInput,
   type LoginInput,
   type RefreshInput,
   type RegisterInput,
@@ -43,6 +47,33 @@ export function createAuthRouter(deps: { auth: AuthService; requireAuth: Request
   router.post('/login', authLimiter, validate({ body: LoginBody }), async (req, res) => {
     const body = req.body as LoginInput;
     const { user, tokens } = await auth.login(body, clientInfo(req));
+    ok(res, { ...toTokensResponse(tokens), user: toMeResponse(user) });
+  });
+
+  // Sign-in with Google (ADR-020). The web server runs the OAuth redirect flow and sends the
+  // resulting ID token here; the API verifies it itself.
+  router.post(
+    '/oauth/google',
+    authLimiter,
+    validate({ body: GoogleSignInBody }),
+    async (req, res) => {
+      const body = req.body as GoogleSignInInput;
+      const result = await auth.loginWithExternal(body.id_token, body.nonce, clientInfo(req));
+      ok(res, {
+        ...toTokensResponse(result.tokens),
+        user: toMeResponse(result.user),
+        created: result.created,
+      });
+    },
+  );
+
+  router.post('/oauth/link', authLimiter, validate({ body: LinkAccountBody }), async (req, res) => {
+    const body = req.body as LinkAccountInput;
+    const { user, tokens } = await auth.linkExternal(
+      body.link_token,
+      body.password,
+      clientInfo(req),
+    );
     ok(res, { ...toTokensResponse(tokens), user: toMeResponse(user) });
   });
 

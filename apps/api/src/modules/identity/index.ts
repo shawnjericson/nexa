@@ -4,9 +4,16 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import type { EventBus } from '../../shared/events/event-bus';
 import { AuthService } from './application/auth.service';
 import { UserService } from './application/user.service';
-import type { ProfileVisibility, UserDirectory } from './domain/ports';
+import type {
+  AvatarWriter,
+  ExternalIdentityVerifier,
+  ProfileVisibility,
+  UserDirectory,
+} from './domain/ports';
 import { BcryptPasswordHasher } from './infrastructure/bcrypt-password-hasher';
+import { GoogleIdTokenVerifier } from './infrastructure/google-id-token.verifier';
 import { JwtAccessTokenService } from './infrastructure/jwt-access-token.service';
+import { JwtAccountLinkTokens } from './infrastructure/jwt-account-link-tokens';
 import { PrismaRefreshTokenRepository } from './infrastructure/prisma-refresh-token.repository';
 import { PrismaUserSearch } from './infrastructure/prisma-user-search';
 import { PrismaUserRepository } from './infrastructure/prisma-user.repository';
@@ -22,7 +29,13 @@ import { createUsersRouter } from './presentation/users.routes';
 // Public contract of the Identity module - other modules import only from here.
 export type { AuthContext } from './domain/auth-context';
 export { USER_REGISTERED, type UserRegisteredEvent } from './domain/events';
-export type { ProfileVisibility, UserDirectory, UserSummary } from './domain/ports';
+export type {
+  AvatarWriter,
+  ExternalIdentityVerifier,
+  ProfileVisibility,
+  UserDirectory,
+  UserSummary,
+} from './domain/ports';
 export { requireAuthContext, type Authenticate } from './presentation/require-auth';
 export { UserReference } from './presentation/schemas';
 export { toUserReference } from './presentation/user.dto';
@@ -34,6 +47,7 @@ export type IdentityConfig = Pick<
   | 'REFRESH_TOKEN_TTL_DAYS'
   | 'REFRESH_REUSE_GRACE_SECONDS'
   | 'BCRYPT_ROUNDS'
+  | 'GOOGLE_CLIENT_ID'
 >;
 
 export interface IdentityModule {
@@ -43,6 +57,8 @@ export interface IdentityModule {
   /** Same checks as requireAuth, for non-HTTP transports (WebSocket handshakes). */
   authenticate: Authenticate;
   userDirectory: UserDirectory;
+  /** For the File module: uploaded pictures as avatars. */
+  avatars: AvatarWriter;
 }
 
 export function createIdentityModule(deps: {
@@ -50,6 +66,11 @@ export function createIdentityModule(deps: {
   events: EventBus;
   profileVisibility: ProfileVisibility;
   config: IdentityConfig;
+  /**
+   * Google ID token verification. Defaults to Google's published keys when GOOGLE_CLIENT_ID is
+   * set (tests pass their own keys); null turns Google sign-in off.
+   */
+  externalIdentity?: ExternalIdentityVerifier | null;
 }): IdentityModule {
   const { prisma, events, profileVisibility, config } = deps;
 
@@ -59,6 +80,12 @@ export function createIdentityModule(deps: {
     config.JWT_ACCESS_SECRET,
     config.JWT_ACCESS_TTL_SECONDS,
   );
+  const externalIdentity =
+    deps.externalIdentity !== undefined
+      ? deps.externalIdentity
+      : config.GOOGLE_CLIENT_ID
+        ? new GoogleIdTokenVerifier(config.GOOGLE_CLIENT_ID)
+        : null;
   const auth = new AuthService({
     users,
     refreshTokens: new PrismaRefreshTokenRepository(prisma),
@@ -69,6 +96,8 @@ export function createIdentityModule(deps: {
       refreshTokenTtlDays: config.REFRESH_TOKEN_TTL_DAYS,
       refreshReuseGraceSeconds: config.REFRESH_REUSE_GRACE_SECONDS,
     },
+    externalIdentity,
+    linkTokens: new JwtAccountLinkTokens(config.JWT_ACCESS_SECRET),
   });
   const authenticate = createAuthenticator({ accessTokens, users });
   const requireAuth = createRequireAuth(authenticate);
@@ -89,5 +118,6 @@ export function createIdentityModule(deps: {
       findByEmail: (email) => users.findSummaryByEmail(email),
       search: (query, options) => userSearch.search(query, options),
     },
+    avatars: { set: (userId, avatar) => users.updateAvatar(userId, avatar) },
   };
 }

@@ -55,6 +55,26 @@ export const RefreshBody = z
   .object({ refresh_token: z.string().min(1).max(512) })
   .openapi('RefreshTokenRequest');
 
+export const GoogleSignInBody = z
+  .object({
+    id_token: z.string().min(1).max(8192).openapi({
+      description: 'The ID token Google returned for this sign-in',
+    }),
+    nonce: z.string().min(16).max(256).openapi({
+      description: 'The nonce sent in the authorization request; the token must carry it',
+    }),
+  })
+  .openapi('GoogleSignInRequest');
+
+export const LinkAccountBody = z
+  .object({
+    link_token: z.string().min(1).max(4096).openapi({
+      description: 'From the ACCOUNT_LINK_REQUIRED error; valid for 10 minutes',
+    }),
+    password: z.string().min(1).max(1024),
+  })
+  .openapi('LinkAccountRequest');
+
 export const ChangePasswordBody = z
   .object({
     current_password: z.string().min(1).max(1024),
@@ -123,9 +143,15 @@ export const AuthTokens = z
 
 export const LoginResult = AuthTokens.extend({ user: Me }).openapi('LoginResult');
 
+export const ExternalLoginResult = LoginResult.extend({
+  created: z.boolean().openapi({ description: 'Whether this sign-in created the account' }),
+}).openapi('ExternalLoginResult');
+
 export type RegisterInput = z.infer<typeof RegisterBody>;
 export type LoginInput = z.infer<typeof LoginBody>;
 export type RefreshInput = z.infer<typeof RefreshBody>;
+export type GoogleSignInInput = z.infer<typeof GoogleSignInBody>;
+export type LinkAccountInput = z.infer<typeof LinkAccountBody>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordBody>;
 export type UpdateMeInput = z.infer<typeof UpdateMeBody>;
 export type UserIdInput = z.infer<typeof UserIdParams>;

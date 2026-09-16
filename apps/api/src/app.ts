@@ -12,7 +12,7 @@ import { RealtimeHub } from './infrastructure/websocket/realtime-hub';
 import { createAdministrationModule, type AuditDocument } from './modules/administration';
 import { createCommunicationModule } from './modules/communication';
 import { createFileModule } from './modules/file';
-import { createIdentityModule } from './modules/identity';
+import { createIdentityModule, type ExternalIdentityVerifier } from './modules/identity';
 import { createNotificationModule } from './modules/notification';
 import { createOrganizationModule } from './modules/organization';
 import { createSearchModule } from './modules/search';
@@ -34,6 +34,11 @@ export interface AppDependencies {
   storage?: ObjectStorage | null;
   /** Socket.IO hub; server.ts attaches it to the HTTP server. Emits are no-ops until then. */
   realtime?: RealtimeHub;
+  /**
+   * Google ID token verification; by default built from GOOGLE_CLIENT_ID. Tests pass a verifier
+   * with their own keys; null turns Google sign-in off.
+   */
+  externalIdentity?: ExternalIdentityVerifier | null;
   /** Periodic jobs such as retrying queued audit entries (the server enables them). */
   backgroundJobs?: boolean;
   readinessChecks?: Record<string, ReadinessCheck>;
@@ -50,6 +55,7 @@ export function createApp({
   mongo = null,
   storage = null,
   realtime = new RealtimeHub(),
+  externalIdentity,
   backgroundJobs = false,
   readinessChecks = {},
 }: AppDependencies): Express {
@@ -60,6 +66,7 @@ export function createApp({
     events,
     profileVisibility: organization.profileVisibility,
     config: env,
+    externalIdentity,
   });
   const users = identity.userDirectory;
   const guard = [identity.requireAuth, organization.requireOrganization];
@@ -69,6 +76,8 @@ export function createApp({
     storage,
     policy: { maxBytes: env.FILE_MAX_BYTES, maxPendingUploads: env.FILE_MAX_PENDING_UPLOADS },
     guard,
+    avatars: identity.avatars,
+    publicUrl: env.PUBLIC_API_URL ?? `http://localhost:${env.PORT}`,
     backgroundJobs,
   });
   const social = createSocialModule({
@@ -128,6 +137,8 @@ export function createApp({
 
   app.use(healthRouter(readinessChecks));
   app.use(docsRouter());
+  // Avatar pictures, before the global rate limit: one page can show dozens of them.
+  app.use('/api/v1', files.publicRouter);
 
   app.use(globalRateLimiter);
   app.use(express.json({ limit: '100kb' }));
