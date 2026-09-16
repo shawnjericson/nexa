@@ -187,6 +187,7 @@ export const vi = {
     switchOrganization: 'Chuyển tổ chức',
     skipToContent: 'Bỏ qua tới nội dung chính',
     unreadNotifications: 'Có thông báo chưa đọc',
+    unreadCount: { one: '{count} thông báo chưa đọc', other: '{count} thông báo chưa đọc' },
   },
   organization: {
     noneTitle: 'Bạn chưa thuộc tổ chức nào',

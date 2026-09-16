@@ -23,9 +23,11 @@ import { registerChatSockets } from './presentation/socket';
 // Public contract of the Communication module.
 export {
   CONVERSATION_CREATED,
+  CONVERSATION_READ,
   MESSAGE_CREATED,
   MESSAGE_DELETED,
   type ConversationCreatedEvent,
+  type ConversationReadEvent,
   type MessageCreatedEvent,
   type MessageDeletedEvent,
 } from './domain/events';

@@ -178,4 +178,17 @@ export class PrismaNotificationRepository implements NotificationRepository {
     });
     return count;
   }
+
+  async markGroupRead(
+    organizationId: string,
+    recipientId: string,
+    groupKey: string,
+    at: Date,
+  ): Promise<number> {
+    const { count } = await this.prisma.notification.updateMany({
+      where: { organizationId, recipientId, groupKey, readAt: null },
+      data: { readAt: at },
+    });
+    return count;
+  }
 }

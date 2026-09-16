@@ -1,5 +1,10 @@
 import type { EventBus } from '../../../shared/events/event-bus';
-import { MESSAGE_CREATED, type MessageCreatedEvent } from '../../communication';
+import {
+  CONVERSATION_READ,
+  MESSAGE_CREATED,
+  type ConversationReadEvent,
+  type MessageCreatedEvent,
+} from '../../communication';
 import {
   MEMBER_UPDATED,
   type MemberUpdatedEvent,
@@ -116,6 +121,16 @@ export function registerNotificationRules(
           attachment_count,
         },
       })),
+    );
+  });
+
+  // Opening a conversation is as good as opening the notification about it.
+  events.subscribe<ConversationReadEvent>(CONVERSATION_READ, async (event) => {
+    if (!event.organization_id || !event.actor_id) return;
+    await notifications.markGroupRead(
+      event.organization_id,
+      event.actor_id,
+      `message.received:${event.metadata.conversation_id}`,
     );
   });
 

@@ -63,6 +63,14 @@ export class NotificationService {
     return notification;
   }
 
+  /**
+   * Clears a coalesced group for one person, by group key. Used when something else already
+   * showed them what the notification was about - opening the conversation, for instance.
+   */
+  markGroupRead(organizationId: string, recipientId: string, groupKey: string): Promise<number> {
+    return this.deps.notifications.markGroupRead(organizationId, recipientId, groupKey, this.now());
+  }
+
   markAllRead(actor: OrganizationActor): Promise<number> {
     return this.deps.notifications.markAllRead(
       actor.organization.organizationId,

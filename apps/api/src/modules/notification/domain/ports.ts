@@ -32,6 +32,13 @@ export interface NotificationRepository {
     at: Date,
   ): Promise<Notification | null>;
   markAllRead(organizationId: string, recipientId: string, at: Date): Promise<number>;
+  /** Clears one coalesced group (e.g. every unread message of one conversation). */
+  markGroupRead(
+    organizationId: string,
+    recipientId: string,
+    groupKey: string,
+    at: Date,
+  ): Promise<number>;
 }
 
 /** Pushes stored notifications to the recipients' connected devices. */

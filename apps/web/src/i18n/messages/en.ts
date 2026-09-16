@@ -184,6 +184,7 @@ export const en: Messages = {
     switchOrganization: 'Switch organization',
     skipToContent: 'Skip to main content',
     unreadNotifications: 'You have unread notifications',
+    unreadCount: { one: '{count} unread notification', other: '{count} unread notifications' },
   },
   organization: {
     noneTitle: "You're not in an organization yet",

@@ -303,6 +303,9 @@ export function useMarkRead(id: string) {
         unread_count: Math.max(0, item.last_message_seq - result.last_read_seq),
       }));
       void queryClient.invalidateQueries({ queryKey: orgKey('conversations', 'briefing') });
+      // The API clears the notification about this conversation; pick that up now rather than
+      // leaving a dot on the bell for something the person is looking at.
+      void queryClient.invalidateQueries({ queryKey: orgKey('notifications') });
     },
     [queryClient, orgKey, id],
   );

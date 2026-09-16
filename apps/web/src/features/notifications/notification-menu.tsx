@@ -233,7 +233,7 @@ function NotificationList({ onNavigate }: { onNavigate(href: string): void }) {
  */
 export function NotificationBell() {
   const i18n = useI18n();
-  const { t } = i18n;
+  const { t, tn } = i18n;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const unread = useUnreadNotificationCount();
@@ -248,7 +248,7 @@ export function NotificationBell() {
 
   const label =
     unreadCount > 0
-      ? `${t('nav.notifications')} - ${t('shell.unreadNotifications')}`
+      ? `${t('nav.notifications')} - ${tn('shell.unreadCount', unreadCount)}`
       : t('nav.notifications');
 
   return (
@@ -258,12 +258,14 @@ export function NotificationBell() {
         className="relative inline-flex size-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-subtle hover:text-fg data-[state=open]:bg-surface-subtle data-[state=open]:text-fg"
       >
         <Bell className="size-[18px]" aria-hidden />
-        {/* Restrained unread state: a dot, not a bright count (spec §3.2). */}
+        {/* How many, not just that there are some: a dot sends you looking for what changed. */}
         {unreadCount > 0 && (
           <span
             aria-hidden
-            className="absolute top-2 right-2 size-2 rounded-full bg-accent ring-2 ring-background"
-          />
+            className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-accent-contrast ring-2 ring-background"
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
         )}
       </PopoverTrigger>
       <PopoverContent className="w-[min(26rem,calc(100vw-1.5rem))] p-0">

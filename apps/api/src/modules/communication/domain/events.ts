@@ -4,6 +4,7 @@ import type { ConversationType } from './conversation';
 export const CONVERSATION_CREATED = 'communication.conversation_created';
 export const MESSAGE_CREATED = 'communication.message_created';
 export const MESSAGE_DELETED = 'communication.message_deleted';
+export const CONVERSATION_READ = 'communication.conversation_read';
 
 export type ConversationCreatedEvent = DomainEvent<
   typeof CONVERSATION_CREATED,
@@ -22,6 +23,15 @@ export type MessageCreatedEvent = DomainEvent<
     excerpt: string;
     attachment_count: number;
   }
+>;
+
+/**
+ * Published when someone's read position actually moves forward. Consumed by notifications, so
+ * that opening a conversation clears the notification about its messages.
+ */
+export type ConversationReadEvent = DomainEvent<
+  typeof CONVERSATION_READ,
+  { conversation_id: string; last_read_seq: number }
 >;
 
 /** `moderated` is true when someone other than the sender deleted it. */

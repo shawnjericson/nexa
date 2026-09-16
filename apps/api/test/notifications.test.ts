@@ -227,6 +227,33 @@ describe('notification rules', () => {
     expect(await notificationsOf(alice.accessToken)).toEqual([]);
   });
 
+  it('clears the conversation notification once the messages have been read', async () => {
+    const { alice, bob } = await createTeam(app);
+    const dm = (
+      await request(app)
+        .post('/api/v1/conversations')
+        .set(bearer(alice.accessToken))
+        .send({ type: 'DIRECT', user_id: bob.user.id })
+    ).body.data as { id: string };
+    await sendMessage(alice.accessToken, dm.id, 'hi');
+    await sendMessage(alice.accessToken, dm.id, 'still there?');
+
+    const before = await notificationsOf(bob.accessToken);
+    await request(app)
+      .post(`/api/v1/conversations/${dm.id}/read`)
+      .set(bearer(bob.accessToken))
+      .send({ seq: 2 });
+    const after = await notificationsOf(bob.accessToken);
+    const unread = await request(app)
+      .get('/api/v1/notifications/unread-count')
+      .set(bearer(bob.accessToken));
+
+    expect(before).toMatchObject([{ type: 'message.received', read: false }]);
+    // Still in the list, just no longer demanding attention.
+    expect(after).toMatchObject([{ type: 'message.received', read: true }]);
+    expect(unread.body.data.unread_count).toBe(0);
+  });
+
   it('tells members when their role changes', async () => {
     const { owner, alice } = await createTeam(app);
     const organizationId = await defaultOrganizationId();

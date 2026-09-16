@@ -8,7 +8,11 @@ import {
   type ConversationMembership,
   type Message,
 } from '../domain/conversation';
-import { CONVERSATION_CREATED, type ConversationCreatedEvent } from '../domain/events';
+import {
+  CONVERSATION_CREATED,
+  CONVERSATION_READ,
+  type ConversationCreatedEvent,
+} from '../domain/events';
 import { canManageConversation, type ChatActor } from '../domain/policies';
 import type {
   ActivityCursor,
@@ -262,7 +266,8 @@ export class ConversationService {
 
   /** Read positions only move forward (risk register 9.6) and never past the last message. */
   async markRead(actor: ChatActor, id: string, seq: number): Promise<number> {
-    const { conversation } = await this.requireMember(actor, id);
+    const { conversation, membership } = await this.requireMember(actor, id);
+    const previous = membership.lastReadSeq;
     const lastReadSeq = await this.deps.conversations.markRead(
       conversation.id,
       actor.userId,
@@ -273,6 +278,17 @@ export class ConversationService {
       await this.deps.conversations.listMemberIds(conversation.id),
       { userId: actor.userId, lastReadSeq },
     );
+    // Only when it actually moved: re-reading the same messages is not news to anyone.
+    if (lastReadSeq > previous) {
+      await this.deps.events.publish(
+        createEvent(CONVERSATION_READ, {
+          organization_id: conversation.organizationId,
+          actor_id: actor.userId,
+          subject_id: conversation.id,
+          metadata: { conversation_id: conversation.id, last_read_seq: lastReadSeq },
+        }),
+      );
+    }
     return lastReadSeq;
   }
 
