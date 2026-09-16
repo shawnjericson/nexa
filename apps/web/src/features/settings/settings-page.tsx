@@ -5,7 +5,6 @@ import { Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea, TextField } from '@/components/ui/input';
@@ -16,7 +15,7 @@ import { LOCALE_NAMES, LOCALES, type Locale } from '@/i18n/config';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
 import { cn } from '@/lib/cn';
-import { isHttpUrl } from '@/lib/url';
+import { AvatarField } from './avatar-field';
 import { useChangePassword, useUpdateMe, type UpdateMeInput } from './queries';
 
 type Me = components['schemas']['Me'];
@@ -56,26 +55,19 @@ function ProfileForm({ me }: { me: Me }) {
   const [displayName, setDisplayName] = useState(me.display_name);
   const [username, setUsername] = useState(me.username);
   const [bio, setBio] = useState(me.bio ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(me.avatar_url ?? '');
-  const [errors, setErrors] = useState<
-    Partial<Record<'displayName' | 'username' | 'avatarUrl', string>>
-  >({});
+  const [errors, setErrors] = useState<Partial<Record<'displayName' | 'username', string>>>({});
 
   const changes: UpdateMeInput = {};
   if (displayName.trim() !== me.display_name) changes.display_name = displayName.trim();
   if (username.trim() !== me.username) changes.username = username.trim();
   if ((bio.trim() || null) !== me.bio) changes.bio = bio.trim() || null;
-  if ((avatarUrl.trim() || null) !== me.avatar_url) changes.avatar_url = avatarUrl.trim() || null;
   const dirty = Object.keys(changes).length > 0;
-  const previewUrl = avatarUrl.trim() && isHttpUrl(avatarUrl.trim()) ? avatarUrl.trim() : null;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const found: typeof errors = {};
     if (!displayName.trim()) found.displayName = t('settings.required');
     if (!USERNAME.test(username.trim())) found.username = t('settings.invalidUsername');
-    if (avatarUrl.trim() && !isHttpUrl(avatarUrl.trim()))
-      found.avatarUrl = t('settings.invalidUrl');
     setErrors(found);
     if (!dirty || Object.keys(found).length > 0) return;
 
@@ -93,16 +85,7 @@ function ProfileForm({ me }: { me: Me }) {
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        {/* Keyed by the link: the avatar remembers a broken image, a new link deserves a try. */}
-        <Avatar
-          key={previewUrl ?? ''}
-          name={displayName.trim() || me.display_name}
-          src={previewUrl}
-          size="lg"
-        />
-        <p className="text-xs text-muted">{t('settings.avatarPreview')}</p>
-      </div>
+      <AvatarField me={me} />
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           label={t('settings.displayName')}
@@ -136,16 +119,6 @@ function ProfileForm({ me }: { me: Me }) {
           rows={3}
         />
       </div>
-      <TextField
-        type="url"
-        label={t('settings.avatarUrl')}
-        value={avatarUrl}
-        onChange={(event) => setAvatarUrl(event.target.value)}
-        error={errors.avatarUrl}
-        hint={t('settings.avatarHint')}
-        placeholder="https://"
-        maxLength={2048}
-      />
       <Button type="submit" className="self-start" disabled={!dirty} loading={update.isPending}>
         {t('settings.saveProfile')}
       </Button>
