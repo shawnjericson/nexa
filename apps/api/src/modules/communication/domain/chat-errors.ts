@@ -46,4 +46,10 @@ export const ChatErrors = {
     new AppError(403, 'MESSAGE_EDIT_FORBIDDEN', 'Only the sender can edit this message'),
   messageDeleteForbidden: () =>
     new AppError(403, 'MESSAGE_DELETE_FORBIDDEN', 'You cannot delete this message'),
+  messageChangeWindowExpired: (minutes: number) =>
+    new AppError(
+      403,
+      'MESSAGE_CHANGE_WINDOW_EXPIRED',
+      `Your own messages can only be edited or deleted within ${minutes} minutes of sending`,
+    ),
 };

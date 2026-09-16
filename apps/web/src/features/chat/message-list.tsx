@@ -13,6 +13,12 @@ const GROUP_WINDOW_MS = 5 * 60_000;
 const BOTTOM_THRESHOLD_PX = 80;
 const LOAD_OLDER_THRESHOLD_PX = 150;
 const MANAGER_ROLES = new Set(['OWNER', 'ADMIN']);
+/**
+ * How long you may still change your own message. The API enforces this too
+ * (MESSAGE_CHANGE_WINDOW_MINUTES in the communication policies); here it only decides whether the
+ * buttons are worth showing.
+ */
+const CHANGE_WINDOW_MS = 15 * 60_000;
 
 const dayOf = (iso: string) => new Date(iso).toDateString();
 
@@ -129,6 +135,9 @@ export function MessageList({
     return formatDate(iso, { weekday: 'long', day: 'numeric', month: 'long' });
   };
 
+  // Recomputed on every render, which is often enough: the API has the last word anyway.
+  const stillChangeable = (message: Message) =>
+    Date.now() - new Date(message.created_at).getTime() <= CHANGE_WINDOW_MS;
   const canModerate =
     (conversation.type !== 'DIRECT' && MANAGER_ROLES.has(conversation.my_role ?? '')) ||
     (conversation.type === 'CHANNEL' && isOrganizationManager);
@@ -209,9 +218,10 @@ export function MessageList({
                 message={message}
                 conversationId={conversation.id}
                 showHeader={showHeader}
-                canEdit={mine && message.type === 'TEXT'}
-                canDelete={mine || canModerate}
+                canEdit={mine && message.type === 'TEXT' && stillChangeable(message)}
+                canDelete={(mine && stillChangeable(message)) || canModerate}
                 readers={message.id === lastOwn?.id ? readers : undefined}
+                readerFaces={conversation.type !== 'DIRECT'}
               />
             </Fragment>
           );

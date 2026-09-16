@@ -9,7 +9,14 @@ import {
   type MessageCreatedEvent,
   type MessageDeletedEvent,
 } from '../domain/events';
-import { canDeleteMessage, canEditMessage, type ChatActor } from '../domain/policies';
+import {
+  canDeleteMessage,
+  canEditMessage,
+  canModerateMessages,
+  MESSAGE_CHANGE_WINDOW_MINUTES,
+  withinChangeWindow,
+  type ChatActor,
+} from '../domain/policies';
 import type { ChatRealtime, ConversationRepository, MessageRepository } from '../domain/ports';
 import type { ConversationService } from './conversation.service';
 
@@ -123,6 +130,9 @@ export class MessageService {
     const message = await this.deps.messages.findById(conversation.id, messageId);
     if (!message || message.deletedAt) throw ChatErrors.messageNotFound();
     if (!canEditMessage(actor, message)) throw ChatErrors.messageEditForbidden();
+    if (!withinChangeWindow(message, this.now())) {
+      throw ChatErrors.messageChangeWindowExpired(MESSAGE_CHANGE_WINDOW_MINUTES);
+    }
 
     const updated = await this.deps.messages.edit(conversation.id, message.id, content, this.now());
     if (!updated) throw ChatErrors.messageNotFound();
@@ -144,6 +154,13 @@ export class MessageService {
     if (!message || message.deletedAt) throw ChatErrors.messageNotFound();
     if (!canDeleteMessage(actor, conversation, membership, message)) {
       throw ChatErrors.messageDeleteForbidden();
+    }
+    // Moderators take messages down whenever they need to; senders only within the window.
+    if (
+      !canModerateMessages(actor, conversation, membership) &&
+      !withinChangeWindow(message, this.now())
+    ) {
+      throw ChatErrors.messageChangeWindowExpired(MESSAGE_CHANGE_WINDOW_MINUTES);
     }
 
     const deleted = await this.deps.messages.softDelete(conversation.id, message.id, this.now());

@@ -182,6 +182,44 @@ describe('editing and deleting', () => {
     expect(byGroupOwner.status).toBe(200);
     expect([byDmPeer.status, byDmPeer.body.code]).toEqual([403, 'MESSAGE_DELETE_FORBIDDEN']);
   });
+
+  it('closes the window on your own message after 15 minutes, but never for a moderator', async () => {
+    const team = await createTeam(app);
+    const group = (
+      await post(team.alice.accessToken, '/conversations', {
+        type: 'GROUP',
+        name: 'Group',
+        member_ids: [team.bob.user.id],
+      })
+    ).body.data;
+    const dm = await openDirect(team);
+    const mine = (await send(team.bob.accessToken, dm.id, 'typed in haste')).body.data;
+    const inGroup = (await send(team.bob.accessToken, group.id, 'regrettable')).body.data;
+    await prisma.message.updateMany({
+      where: { id: { in: [mine.id, inGroup.id] } },
+      data: { createdAt: new Date(Date.now() - 16 * 60_000) },
+    });
+
+    const path = `/api/v1/conversations/${dm.id}/messages/${mine.id}`;
+    const edited = await request(app)
+      .patch(path)
+      .set(bearer(team.bob.accessToken))
+      .send({ content: 'second thoughts' });
+    const removed = await request(app).delete(path).set(bearer(team.bob.accessToken));
+    const moderated = await request(app)
+      .delete(`/api/v1/conversations/${group.id}/messages/${inGroup.id}`)
+      .set(bearer(team.alice.accessToken));
+
+    expect([edited.status, edited.body.code]).toEqual([403, 'MESSAGE_CHANGE_WINDOW_EXPIRED']);
+    expect([removed.status, removed.body.code]).toEqual([403, 'MESSAGE_CHANGE_WINDOW_EXPIRED']);
+    expect(moderated.status).toBe(200);
+    const stored = await prisma.message.findUniqueOrThrow({ where: { id: mine.id } });
+    expect([stored.content, stored.editedAt, stored.deletedAt]).toEqual([
+      'typed in haste',
+      null,
+      null,
+    ]);
+  });
 });
 
 describe('read state', () => {

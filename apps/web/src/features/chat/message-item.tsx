@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Copy, Loader2, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCheck, Copy, Loader2, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/ui/avatar';
@@ -61,24 +61,32 @@ function ToolbarButton({
   );
 }
 
-/** Who has read up to this message (shown on the last one you sent). */
-function ReadBy({ readers }: { readers: UserRef[] }) {
-  const { t } = useI18n();
+/**
+ * Who has read up to this message, on the last one you sent. In a direct conversation there is
+ * only ever one reader, so a face would say nothing the words don't; in a group it is the whole
+ * point, and the names are on the line itself for anyone not using a mouse.
+ */
+function ReadBy({ readers, faces }: { readers: UserRef[]; faces: boolean }) {
+  const { t, tn } = useI18n();
+  const names = readers.map((reader) => reader.display_name).join(', ');
   return (
-    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-      {t('chat.seen')}
-      <span className="flex -space-x-1">
-        {readers.slice(0, MAX_READERS).map((reader) => (
-          <Avatar
-            key={reader.id}
-            name={reader.display_name}
-            src={reader.avatar_url}
-            size="xs"
-            className="ring-2 ring-surface"
-          />
-        ))}
-      </span>
-      {readers.length > MAX_READERS && <span>+{readers.length - MAX_READERS}</span>}
+    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted" title={names}>
+      <CheckCheck className="size-3.5 shrink-0 text-accent" aria-hidden />
+      <span>{faces ? tn('chat.seenBy', readers.length) : t('chat.seen')}</span>
+      {faces && (
+        <span className="flex -space-x-1">
+          {readers.slice(0, MAX_READERS).map((reader) => (
+            <Avatar
+              key={reader.id}
+              name={reader.display_name}
+              src={reader.avatar_url}
+              size="xs"
+              className="ring-2 ring-surface"
+            />
+          ))}
+        </span>
+      )}
+      <span className="sr-only">{names}</span>
     </p>
   );
 }
@@ -94,6 +102,7 @@ export function MessageItem({
   canEdit,
   canDelete,
   readers,
+  readerFaces = false,
 }: {
   message: Message;
   conversationId: string;
@@ -102,6 +111,8 @@ export function MessageItem({
   canDelete: boolean;
   /** People who have read this far; only passed for the last message you sent. */
   readers?: UserRef[];
+  /** Show who they are, which only tells you something outside a direct conversation. */
+  readerFaces?: boolean;
 }) {
   const i18n = useI18n();
   const { t, formatTime, formatDate } = i18n;
@@ -202,7 +213,7 @@ export function MessageItem({
             )}
           </>
         )}
-        {readers && readers.length > 0 && <ReadBy readers={readers} />}
+        {readers && readers.length > 0 && <ReadBy readers={readers} faces={readerFaces} />}
       </div>
 
       {showToolbar && (

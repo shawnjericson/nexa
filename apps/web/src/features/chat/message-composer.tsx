@@ -10,6 +10,7 @@ import { useAttachmentUploads } from '@/features/feed/use-attachment-uploads';
 import { useRealtime } from '@/features/realtime/realtime-provider';
 import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
+import { EmojiPicker } from './emoji-picker';
 import { useSendMessage } from './queries';
 import { drafts, type PendingMessage } from './stores';
 
@@ -34,6 +35,7 @@ export function MessageComposer({
   const uploads = useAttachmentUploads();
   const [content, setContent] = useState(() => drafts.get(conversationId) ?? '');
   const fileInput = useRef<HTMLInputElement>(null);
+  const textarea = useRef<HTMLTextAreaElement>(null);
   const typing = useRef<{ sentAt: number; timer?: ReturnType<typeof setTimeout> }>({ sentAt: 0 });
 
   useEffect(() => {
@@ -80,6 +82,20 @@ export function MessageComposer({
     stopTyping();
     // A failure keeps the message on screen with a retry, so nothing is lost.
     send(pending).catch(() => undefined);
+  }
+
+  function insertEmoji(emoji: string) {
+    const field = textarea.current;
+    const at = field ? field.selectionStart : content.length;
+    const to = field ? field.selectionEnd : content.length;
+    setContent(content.slice(0, at) + emoji + content.slice(to));
+    signalTyping();
+    // Put the caret after what was just inserted, once React has rendered the new value.
+    requestAnimationFrame(() => {
+      const caret = at + emoji.length;
+      field?.focus();
+      field?.setSelectionRange(caret, caret);
+    });
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -152,6 +168,7 @@ export function MessageComposer({
           onClick={() => fileInput.current?.click()}
         />
         <Textarea
+          ref={textarea}
           value={content}
           onChange={(event) => {
             setContent(event.target.value);
@@ -167,6 +184,7 @@ export function MessageComposer({
           rows={1}
           className="max-h-40 min-h-8 flex-1 resize-none border-0 bg-transparent px-1 py-1 focus-visible:ring-0 [field-sizing:content]"
         />
+        <EmojiPicker onPick={insertEmoji} />
         <IconButton
           label={t('chat.send')}
           icon={SendHorizontal}

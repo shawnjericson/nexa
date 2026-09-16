@@ -245,6 +245,11 @@ socket.emit('typing.start', { conversation_id }, (ack) => console.log(ack)); // 
 
 - Messages are ordered by a server-assigned, gap-free `seq`. Resending the same
   `client_message_id` returns the original message instead of a duplicate.
+- You can edit or delete your own message for 15 minutes after sending it, and not after
+  (`MESSAGE_CHANGE_WINDOW_EXPIRED`): long enough to fix a typo, short enough that nobody rewrites
+  a conversation others have already acted on. Moderators are not held to it, because taking down
+  something harmful has to stay possible however old it is. Edits are marked, and a delete leaves
+  a tombstone either way.
 - After a reconnect, fetch `messages?after_seq=<last seq you have>`.
 - Direct and group conversations are private: organization admins get 404 like everyone else.
   Leaving the organization removes you from every conversation.
