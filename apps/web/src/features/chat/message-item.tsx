@@ -1,31 +1,26 @@
 'use client';
 
-import { AlertCircle, Copy, Loader2, MoreHorizontal, Pencil, RotateCw, Trash2 } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { AlertCircle, Copy, Loader2, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Textarea } from '@/components/ui/input';
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { RichText } from '@/components/ui/rich-text';
 import { AttachmentList } from '@/features/feed/attachment-list';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
 import type { Message } from '@/lib/chat-types';
 import { cn } from '@/lib/cn';
+import type { UserRef } from '@/lib/types';
 import { useDeleteMessage, useEditMessage } from './queries';
 import type { PendingMessage } from './stores';
 
-function Gutter({
-  show,
-  children,
-  time,
-}: {
-  show: boolean;
-  children: React.ReactNode;
-  time: string;
-}) {
+/** How many faces the read receipt shows before it counts the rest. */
+const MAX_READERS = 4;
+
+function Gutter({ show, children, time }: { show: boolean; children: ReactNode; time: string }) {
   return (
     <div className="w-9 shrink-0">
       {show ? (
@@ -39,6 +34,55 @@ function Gutter({
   );
 }
 
+function ToolbarButton({
+  label,
+  icon: Icon,
+  destructive,
+  onClick,
+}: {
+  label: string;
+  icon: typeof Copy;
+  destructive?: boolean;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-surface-subtle',
+        destructive ? 'hover:text-danger' : 'hover:text-fg',
+      )}
+    >
+      <Icon className="size-4" aria-hidden />
+    </button>
+  );
+}
+
+/** Who has read up to this message (shown on the last one you sent). */
+function ReadBy({ readers }: { readers: UserRef[] }) {
+  const { t } = useI18n();
+  return (
+    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+      {t('chat.seen')}
+      <span className="flex -space-x-1">
+        {readers.slice(0, MAX_READERS).map((reader) => (
+          <Avatar
+            key={reader.id}
+            name={reader.display_name}
+            src={reader.avatar_url}
+            size="xs"
+            className="ring-2 ring-surface"
+          />
+        ))}
+      </span>
+      {readers.length > MAX_READERS && <span>+{readers.length - MAX_READERS}</span>}
+    </p>
+  );
+}
+
 /**
  * One message in the log. No chat bubbles: messages read like workplace communication, with the
  * sender shown once per run of messages (spec §6).
@@ -49,14 +93,15 @@ export function MessageItem({
   showHeader,
   canEdit,
   canDelete,
-  seen,
+  readers,
 }: {
   message: Message;
   conversationId: string;
   showHeader: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  seen: boolean;
+  /** People who have read this far; only passed for the last message you sent. */
+  readers?: UserRef[];
 }) {
   const i18n = useI18n();
   const { t, formatTime, formatDate } = i18n;
@@ -95,6 +140,9 @@ export function MessageItem({
     await navigator.clipboard.writeText(message.content ?? '');
     toast.success(t('chat.copied'));
   }
+
+  const canCopy = Boolean(message.content);
+  const showToolbar = !message.deleted && !editing && (canCopy || canEdit || canDelete);
 
   return (
     <div
@@ -154,46 +202,32 @@ export function MessageItem({
             )}
           </>
         )}
-        {seen && <p className="mt-0.5 text-[11px] text-muted">{t('chat.seen')}</p>}
+        {readers && readers.length > 0 && <ReadBy readers={readers} />}
       </div>
 
-      {!message.deleted && !editing && (
-        <Menu>
-          <MenuTrigger
-            aria-label={t('chat.messageActions')}
-            className="absolute -top-2 right-2 inline-flex size-7 items-center justify-center rounded-md border border-border bg-surface text-muted opacity-0 shadow-sm group-hover:opacity-100 hover:text-fg focus:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
-          >
-            <MoreHorizontal className="size-4" aria-hidden />
-          </MenuTrigger>
-          <MenuContent align="end">
-            {message.content && (
-              <MenuItem onSelect={copy}>
-                <Copy aria-hidden />
-                {t('chat.copy')}
-              </MenuItem>
-            )}
-            {canEdit && (
-              <MenuItem
-                onSelect={() => {
-                  setDraft(message.content ?? '');
-                  setEditing(true);
-                }}
-              >
-                <Pencil aria-hidden />
-                {t('chat.edit')}
-              </MenuItem>
-            )}
-            {canDelete && (
-              <>
-                <MenuSeparator />
-                <MenuItem destructive onSelect={() => setConfirming(true)}>
-                  <Trash2 aria-hidden />
-                  {t('chat.delete')}
-                </MenuItem>
-              </>
-            )}
-          </MenuContent>
-        </Menu>
+      {showToolbar && (
+        // Hidden until the message is hovered or focused; always there on touch screens.
+        <div className="absolute -top-3 right-2 hidden items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-sm group-focus-within:flex group-hover:flex max-md:flex">
+          {canCopy && <ToolbarButton label={t('chat.copy')} icon={Copy} onClick={copy} />}
+          {canEdit && (
+            <ToolbarButton
+              label={t('chat.edit')}
+              icon={Pencil}
+              onClick={() => {
+                setDraft(message.content ?? '');
+                setEditing(true);
+              }}
+            />
+          )}
+          {canDelete && (
+            <ToolbarButton
+              label={t('chat.delete')}
+              icon={Trash2}
+              destructive
+              onClick={() => setConfirming(true)}
+            />
+          )}
+        </div>
       )}
 
       <ConfirmDialog

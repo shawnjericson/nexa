@@ -3,6 +3,7 @@ import {
   Home,
   LayoutList,
   MessageSquare,
+  Search,
   Settings,
   Shield,
   Users,
@@ -16,31 +17,22 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
-export interface NavSection {
-  label: MessageKey;
-  items: NavItem[];
-}
+/**
+ * Information architecture (spec §2): few top-level destinations. Conversations are not in this
+ * list - the sidebar shows the channels and people themselves, the way they are thought of.
+ */
+export const PRIMARY_ITEMS: NavItem[] = [
+  { href: '/home', label: 'nav.overview', icon: Home },
+  { href: '/feed', label: 'nav.feed', icon: LayoutList },
+  { href: '/people', label: 'nav.directory', icon: Users },
+];
 
-/** Information architecture (spec §2): few top-level destinations, grouped by intent. */
-export const NAV_SECTIONS: NavSection[] = [
-  {
-    label: 'nav.home',
-    items: [
-      { href: '/home', label: 'nav.overview', icon: Home },
-      { href: '/feed', label: 'nav.feed', icon: LayoutList },
-    ],
-  },
-  {
-    label: 'nav.communicate',
-    items: [
-      { href: '/messages', label: 'nav.messages', icon: MessageSquare },
-      { href: '/channels', label: 'nav.channels', icon: Hash },
-    ],
-  },
-  {
-    label: 'nav.people',
-    items: [{ href: '/people', label: 'nav.directory', icon: Users }],
-  },
+/** Everywhere the command palette can go. */
+export const PAGE_ITEMS: NavItem[] = [
+  ...PRIMARY_ITEMS,
+  { href: '/messages', label: 'nav.messages', icon: MessageSquare },
+  { href: '/channels', label: 'nav.channels', icon: Hash },
+  { href: '/search', label: 'nav.search', icon: Search },
 ];
 
 export const SETTINGS_ITEM: NavItem = { href: '/settings', label: 'nav.settings', icon: Settings };

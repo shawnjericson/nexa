@@ -389,6 +389,8 @@ export const vi = {
     unavailableTitle: 'Không mở được cuộc trò chuyện này',
     unavailableDescription: 'Cuộc trò chuyện không tồn tại hoặc bạn không còn là thành viên.',
     seen: 'Đã xem',
+    sharedFiles: 'Tệp đã chia sẻ',
+    noSharedFiles: 'Chưa có tệp nào trong phần trò chuyện đã tải.',
     today: 'Hôm nay',
     yesterday: 'Hôm qua',
     back: 'Về danh sách tin nhắn',

@@ -1,15 +1,12 @@
 'use client';
 
 import { isApiError } from '@nexa/api-client';
-import { ArrowLeft, Archive, Hash, Info, LogOut, MessageSquareOff } from 'lucide-react';
+import { Archive, ArrowLeft, Hash, Info, MessageSquareOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Avatar } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { IconButton } from '@/components/ui/icon-button';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/states';
@@ -18,15 +15,16 @@ import { usePresence } from '@/features/people/queries';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
-import type { ConversationDetails } from '@/lib/chat-types';
+import type { ConversationDetails as Conversation } from '@/lib/chat-types';
 import { useStore } from '@/lib/external-store';
+import { useMediaQuery } from '@/lib/use-media-query';
+import { ConversationDetails } from './conversation-details';
 import { ConversationIcon, conversationTitle } from './conversation-display';
 import { MessageComposer } from './message-composer';
 import { MessageList } from './message-list';
 import {
   useConversation,
   useJoinChannel,
-  useLeaveConversation,
   useLoadOlder,
   useMarkRead,
   useMessages,
@@ -41,13 +39,7 @@ import {
   typingStore,
 } from './stores';
 
-function TypingIndicator({
-  conversation,
-  meId,
-}: {
-  conversation: ConversationDetails;
-  meId?: string;
-}) {
+function TypingIndicator({ conversation, meId }: { conversation: Conversation; meId?: string }) {
   const { t } = useI18n();
   const typing = useStore(typingStore, (state) => state[conversation.id] ?? EMPTY_TYPING);
   const names = Object.keys(typing)
@@ -65,102 +57,6 @@ function TypingIndicator({
           ? t('chat.typingMany')
           : ''}
     </p>
-  );
-}
-
-function DetailsPanel({
-  conversation,
-  onLeft,
-}: {
-  conversation: ConversationDetails;
-  onLeft(): void;
-}) {
-  const i18n = useI18n();
-  const { t, tn } = i18n;
-  const { data: me } = useMe();
-  const leave = useLeaveConversation();
-  const [confirming, setConfirming] = useState(false);
-  const title = conversationTitle(conversation, t('common.formerMember'));
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-3">
-        <ConversationIcon conversation={conversation} title={title} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{title}</p>
-          <p className="text-xs text-muted">{tn('chat.members', conversation.member_count)}</p>
-        </div>
-      </div>
-      {conversation.description && <p className="text-sm text-fg">{conversation.description}</p>}
-      <section aria-labelledby="conversation-members">
-        <h3
-          id="conversation-members"
-          className="mb-1 text-[11px] font-medium tracking-wider text-muted uppercase"
-        >
-          {t('chat.membersTitle')}
-        </h3>
-        <ul>
-          {conversation.members.map((member) => (
-            <li
-              key={member.user?.id ?? member.joined_at}
-              className="flex items-center gap-2.5 py-1.5"
-            >
-              <Avatar
-                name={member.user?.display_name ?? '?'}
-                src={member.user?.avatar_url}
-                size="sm"
-              />
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {member.user ? (
-                  <Link href={`/people/${member.user.id}`} className="hover:underline">
-                    {member.user.display_name}
-                  </Link>
-                ) : (
-                  t('common.formerMember')
-                )}
-              </span>
-              {member.role === 'OWNER' && <Badge>{t('chat.roleOwner')}</Badge>}
-              {member.role === 'ADMIN' && <Badge>{t('chat.roleAdmin')}</Badge>}
-            </li>
-          ))}
-        </ul>
-      </section>
-      {conversation.type !== 'DIRECT' && conversation.my_role && me && (
-        <>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="self-start"
-            onClick={() => setConfirming(true)}
-          >
-            <LogOut aria-hidden />
-            {t('chat.leave')}
-          </Button>
-          <ConfirmDialog
-            open={confirming}
-            onOpenChange={setConfirming}
-            title={t('chat.leaveTitle')}
-            description={t('chat.leaveDescription')}
-            confirmLabel={t('chat.leave')}
-            destructive
-            loading={leave.isPending}
-            onConfirm={() =>
-              leave.mutate(
-                { conversationId: conversation.id, userId: me.id },
-                {
-                  onSuccess: () => {
-                    setConfirming(false);
-                    toast.success(t('chat.left'));
-                    onLeft();
-                  },
-                  onError: (error) => toast.error(describeError(error, i18n)),
-                },
-              )
-            }
-          />
-        </>
-      )}
-    </div>
   );
 }
 
@@ -183,6 +79,8 @@ export function ConversationView({ conversationId }: { conversationId: string })
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [readAtOpen, setReadAtOpen] = useState<number | null>(null);
   const reported = useRef(0);
+  // Wide screens show the details beside the conversation; smaller ones as a sheet (spec §13).
+  const detailsBeside = useMediaQuery('(min-width: 1024px)');
 
   const peerId = conversation?.type === 'DIRECT' ? conversation.direct_peer?.id : undefined;
   const presence = usePresence(peerId ? [peerId] : []);
@@ -196,8 +94,9 @@ export function ConversationView({ conversationId }: { conversationId: string })
 
   // Freeze where the person left off, for the unread divider.
   useEffect(() => {
-    if (readAtOpen === null && conversation?.last_read_seq != null)
+    if (readAtOpen === null && conversation?.last_read_seq != null) {
       setReadAtOpen(conversation.last_read_seq);
+    }
   }, [conversation?.last_read_seq, readAtOpen]);
 
   const onReadUpTo = useCallback(
@@ -210,12 +109,6 @@ export function ConversationView({ conversationId }: { conversationId: string })
     },
     [markRead, conversation?.last_read_seq],
   );
-
-  const seenSeq = useMemo(() => {
-    if (conversation?.type !== 'DIRECT') return null;
-    const peer = conversation.members.find((member) => member.user?.id !== me?.id);
-    return peer?.last_read_seq ?? null;
-  }, [conversation, me?.id]);
 
   if (details.isPending) {
     return (
@@ -253,6 +146,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         : t('people.offline')
       : (conversation.description ?? tn('chat.members', conversation.member_count));
   const leaveTo = () => router.replace('/messages');
+  const loaded = messages.data?.messages ?? [];
 
   return (
     <div className="flex h-full min-w-0 flex-1">
@@ -280,7 +174,8 @@ export function ConversationView({ conversationId }: { conversationId: string })
             label={t('chat.details')}
             icon={Info}
             size="icon-sm"
-            onClick={() => setDetailsOpen(true)}
+            className={detailsOpen ? 'bg-surface-subtle text-fg' : undefined}
+            onClick={() => setDetailsOpen((open) => !open)}
           />
         </header>
 
@@ -336,7 +231,6 @@ export function ConversationView({ conversationId }: { conversationId: string })
               meName={me?.display_name ?? t('common.you')}
               meAvatar={me?.avatar_url}
               readAtOpen={readAtOpen}
-              seenSeq={seenSeq}
               isOrganizationManager={isManager}
               onReadUpTo={onReadUpTo}
               onRetry={(item) => send(item).catch(() => undefined)}
@@ -356,10 +250,20 @@ export function ConversationView({ conversationId }: { conversationId: string })
         )}
       </div>
 
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+      {detailsBeside && detailsOpen && (
+        <aside
+          aria-label={t('chat.details')}
+          className="w-80 shrink-0 overflow-y-auto border-l border-border bg-surface p-5"
+        >
+          <ConversationDetails conversation={conversation} messages={loaded} onLeft={leaveTo} />
+        </aside>
+      )}
+
+      <Dialog open={detailsOpen && !detailsBeside} onOpenChange={setDetailsOpen}>
         <DialogContent title={t('chat.details')}>
-          <DetailsPanel
+          <ConversationDetails
             conversation={conversation}
+            messages={loaded}
             onLeft={() => {
               setDetailsOpen(false);
               leaveTo();

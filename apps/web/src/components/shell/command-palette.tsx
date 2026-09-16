@@ -28,7 +28,7 @@ import { api } from '@/lib/api/client';
 import { fold } from '@/lib/format';
 import type { UserRef } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
-import { ADMIN_ITEM, NAV_SECTIONS, SETTINGS_ITEM } from './navigation';
+import { ADMIN_ITEM, PAGE_ITEMS, SETTINGS_ITEM } from './navigation';
 
 const OPEN_EVENT = 'nexa:command-palette';
 const RESULTS_PER_KIND = 4;
@@ -129,11 +129,7 @@ export function CommandPalette() {
     action();
   };
   const go = (href: string) => run(() => router.push(href));
-  const pages = [
-    ...NAV_SECTIONS.flatMap((section) => section.items),
-    SETTINGS_ITEM,
-    ...(canAdminister ? [ADMIN_ITEM] : []),
-  ];
+  const pages = [...PAGE_ITEMS, SETTINGS_ITEM, ...(canAdminister ? [ADMIN_ITEM] : [])];
 
   const query = search.trim();
   const found = searchable(query) && searchable(debounced) ? results.data : undefined;

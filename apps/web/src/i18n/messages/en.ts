@@ -387,6 +387,8 @@ export const en: Messages = {
     unavailableTitle: "This conversation isn't available",
     unavailableDescription: "It doesn't exist, or you're no longer a member.",
     seen: 'Seen',
+    sharedFiles: 'Shared files',
+    noSharedFiles: 'No files in the part of the conversation that is loaded.',
     today: 'Today',
     yesterday: 'Yesterday',
     back: 'Back to messages',

@@ -6,8 +6,8 @@ import { ConversationList } from '@/features/chat/conversation-list';
 import { cn } from '@/lib/cn';
 
 /**
- * Conversation list + conversation (spec §6). On phones it is one pane at a time: the list, or
- * the conversation full screen (spec §13).
+ * From lg up the sidebar already lists the conversations, so this pane only appears below it:
+ * on a tablet next to the conversation, and on a phone as one pane at a time (spec §13).
  */
 export default function MessagesLayout({ children }: { children: ReactNode }) {
   const inConversation = usePathname() !== '/messages';
@@ -15,7 +15,7 @@ export default function MessagesLayout({ children }: { children: ReactNode }) {
     <div className="flex h-full min-h-0">
       <div
         className={cn(
-          'h-full w-full shrink-0 border-r border-border bg-surface md:w-80',
+          'h-full w-full shrink-0 border-r border-border bg-surface md:w-80 lg:hidden',
           inConversation && 'hidden md:block',
         )}
       >

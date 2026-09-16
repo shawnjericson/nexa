@@ -32,7 +32,6 @@ export function MessageList({
   meName,
   meAvatar,
   readAtOpen,
-  seenSeq,
   isOrganizationManager,
   onReadUpTo,
   onRetry,
@@ -47,8 +46,6 @@ export function MessageList({
   meName: string;
   meAvatar?: string | null;
   readAtOpen: number | null;
-  /** Highest seq the other person has read (direct conversations), for "Seen". */
-  seenSeq: number | null;
   isOrganizationManager: boolean;
   onReadUpTo(seq: number): void;
   onRetry(pending: PendingMessage): void;
@@ -139,12 +136,15 @@ export function MessageList({
     readAtOpen === null
       ? undefined
       : messages.find((message) => message.seq > readAtOpen && message.sender?.id !== meId);
-  const lastOwnSeen =
-    seenSeq === null
-      ? undefined
-      : [...messages]
-          .reverse()
-          .find((message) => message.sender?.id === meId && message.seq <= seenSeq);
+  // Read receipts sit on the last message you sent: who has read at least that far.
+  const lastOwn = [...messages].reverse().find((message) => message.sender?.id === meId);
+  const readers = lastOwn
+    ? conversation.members.flatMap((member) =>
+        member.user && member.user.id !== meId && member.last_read_seq >= lastOwn.seq
+          ? [member.user]
+          : [],
+      )
+    : [];
 
   return (
     <div className="relative min-h-0 flex-1">
@@ -211,7 +211,7 @@ export function MessageList({
                 showHeader={showHeader}
                 canEdit={mine && message.type === 'TEXT'}
                 canDelete={mine || canModerate}
-                seen={conversation.type === 'DIRECT' && lastOwnSeen?.id === message.id}
+                readers={message.id === lastOwn?.id ? readers : undefined}
               />
             </Fragment>
           );

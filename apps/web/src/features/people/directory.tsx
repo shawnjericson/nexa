@@ -1,13 +1,15 @@
 'use client';
 
-import { Search, Users } from 'lucide-react';
+import { MessageSquare, Search, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/ui/states';
 import { useOrganization } from '@/features/organization/organization-provider';
+import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { fold } from '@/lib/format';
@@ -18,14 +20,45 @@ const NO_DEPARTMENT = '__none__';
 
 type Person = Member & { user: UserRef };
 
-function PersonRow({
+function Chip({
+  active,
+  count,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  count?: number;
+  onClick(): void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] transition-colors',
+        active
+          ? 'border-accent bg-accent-soft font-medium text-accent'
+          : 'border-border text-muted hover:border-muted/40 hover:text-fg',
+      )}
+    >
+      {children}
+      {count !== undefined && <span className="text-xs opacity-70">{count}</span>}
+    </button>
+  );
+}
+
+function PersonCard({
   member,
   departments,
   online,
+  isMe,
 }: {
   member: Person;
   departments: Department[];
   online: boolean;
+  isMe: boolean;
 }) {
   const { t, tryT } = useI18n();
   const { user } = member;
@@ -37,38 +70,58 @@ function PersonRow({
     .join(' · ');
 
   return (
-    <li>
-      <Link
-        href={`/people/${user.id}`}
-        className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-surface-subtle"
-      >
+    <li className="relative flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40">
+      <div className="flex items-start gap-3">
         <Avatar
           name={user.display_name}
           src={user.avatar_url}
+          size="lg"
           presence={online ? 'online' : 'offline'}
         />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-fg">{user.display_name}</span>
-          <span className="block truncate text-xs text-muted">{context}</span>
-        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            {/* The whole card opens the profile; the quick actions sit above it. */}
+            <Link
+              href={`/people/${user.id}`}
+              className="min-w-0 truncate after:absolute after:inset-0 hover:underline"
+            >
+              {user.display_name}
+            </Link>
+            {isMe && <Badge>{t('common.you')}</Badge>}
+          </p>
+          <p className="truncate text-xs text-muted">@{user.username}</p>
+          {context && <p className="mt-1 line-clamp-2 text-xs text-muted">{context}</p>}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
         {user.deactivated ? (
           <Badge>{t('people.deactivated')}</Badge>
         ) : member.status === 'SUSPENDED' ? (
           <Badge tone="warning">{t('people.suspended')}</Badge>
         ) : (
-          <span className={cn('hidden text-xs sm:inline', online ? 'text-success' : 'text-muted')}>
+          <span className={cn('text-xs', online ? 'text-success' : 'text-muted')}>
             {online ? t('people.online') : t('people.offline')}
           </span>
         )}
-      </Link>
+        {!isMe && !user.deactivated && (
+          <Button asChild variant="ghost" size="sm" className="relative z-10">
+            <Link href={`/messages?to=${user.id}`}>
+              <MessageSquare aria-hidden />
+              {t('profile.message')}
+            </Link>
+          </Button>
+        )}
+      </div>
     </li>
   );
 }
 
-/** People grouped by department, with presence and accent-insensitive filtering (spec §6). */
+/** Everyone in the organization: filter by department, search without accents (spec §6). */
 export function PeopleDirectory() {
-  const { t, tn } = useI18n();
+  const { t, tn, locale } = useI18n();
   const { organization } = useOrganization();
+  const { data: me } = useMe();
   const members = useMembers();
   const departments = useDepartments();
   const { byUser } = useDepartmentsByUser(departments.data);
@@ -81,40 +134,29 @@ export function PeopleDirectory() {
   );
   const presence = usePresence(people.map((member) => member.user.id));
 
-  const groups = useMemo(() => {
-    const needle = fold(query.trim());
-    const matches = people
-      .filter(
-        (member) =>
-          !needle ||
+  const inDepartment = (member: Person) =>
+    department === ''
+      ? true
+      : department === NO_DEPARTMENT
+        ? !byUser.get(member.user.id)?.length
+        : Boolean(byUser.get(member.user.id)?.some((item) => item.id === department));
+
+  const needle = fold(query.trim());
+  const visible = people
+    .filter(
+      (member) =>
+        inDepartment(member) &&
+        (!needle ||
           fold(member.user.display_name).includes(needle) ||
-          fold(member.user.username).includes(needle),
-      )
-      .sort((a, b) => a.user.display_name.localeCompare(b.user.display_name));
+          fold(member.user.username).includes(needle)),
+    )
+    .sort((a, b) => a.user.display_name.localeCompare(b.user.display_name, locale));
 
-    const sections = (departments.data ?? [])
-      .filter((item) => !department || item.id === department)
-      .map((item) => ({
-        key: item.id,
-        name: item.name,
-        people: matches.filter((member) =>
-          byUser.get(member.user.id)?.some((d) => d.id === item.id),
-        ),
-      }));
-    if (!department || department === NO_DEPARTMENT) {
-      sections.push({
-        key: NO_DEPARTMENT,
-        name: t('people.noDepartment'),
-        people: matches.filter((member) => !byUser.get(member.user.id)?.length),
-      });
-    }
-    return sections.filter((section) => section.people.length > 0);
-  }, [people, departments.data, byUser, query, department, t]);
-
+  const withoutDepartment = people.filter((member) => !byUser.get(member.user.id)?.length).length;
   const loading = members.isPending || departments.isPending;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8">
       <PageHeader
         title={t('people.title')}
         description={
@@ -124,76 +166,84 @@ export function PeopleDirectory() {
         }
       />
 
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('people.searchPlaceholder')}
-            aria-label={t('people.searchLabel')}
-            className="pl-9"
-          />
-        </div>
-        {(departments.data?.length ?? 0) > 0 && (
-          <select
-            value={department}
-            onChange={(event) => setDepartment(event.target.value)}
-            aria-label={t('people.department')}
-            className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-fg"
-          >
-            <option value="">{t('people.allDepartments')}</option>
-            {departments.data?.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-            <option value={NO_DEPARTMENT}>{t('people.noDepartment')}</option>
-          </select>
-        )}
+      <div className="relative mt-5 max-w-md">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('people.searchPlaceholder')}
+          aria-label={t('people.searchLabel')}
+          className="pl-9"
+        />
       </div>
 
-      <div className="mt-6">
+      {(departments.data?.length ?? 0) > 0 && (
+        <div
+          role="group"
+          aria-label={t('people.department')}
+          className="mt-3 flex gap-1.5 overflow-x-auto pb-1"
+        >
+          <Chip active={department === ''} count={people.length} onClick={() => setDepartment('')}>
+            {t('people.allDepartments')}
+          </Chip>
+          {departments.data?.map((item) => (
+            <Chip
+              key={item.id}
+              active={department === item.id}
+              count={item.member_count}
+              onClick={() => setDepartment(item.id)}
+            >
+              {item.name}
+            </Chip>
+          ))}
+          {withoutDepartment > 0 && (
+            <Chip
+              active={department === NO_DEPARTMENT}
+              count={withoutDepartment}
+              onClick={() => setDepartment(NO_DEPARTMENT)}
+            >
+              {t('people.noDepartment')}
+            </Chip>
+          )}
+        </div>
+      )}
+
+      <div className="mt-5">
         {loading ? (
-          <div className="flex flex-col gap-3">
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
-              <div key={index} className="flex items-center gap-3 px-2">
-                <Skeleton className="size-9 rounded-full" />
-                <Skeleton className="h-4 w-48" />
-              </div>
+              <li key={index} className="rounded-xl border border-border p-4" aria-hidden>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-11 rounded-full" />
+                  <div className="flex flex-1 flex-col gap-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <Skeleton className="mt-4 h-3 w-24" />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : members.isError ? (
           <ErrorState error={members.error} onRetry={() => members.refetch()} />
-        ) : groups.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState icon={Users} title={t('people.noResults', { query: query.trim() })} />
         ) : (
-          <div className="flex flex-col gap-6">
-            {groups.map((group) => (
-              <section key={group.key} aria-label={group.name}>
-                <h2 className="mb-1 flex items-baseline gap-2 px-2 text-[13px] font-semibold">
-                  {group.name}
-                  <span className="text-xs font-normal text-muted">
-                    {tn('people.memberCount', group.people.length)}
-                  </span>
-                </h2>
-                <ul>
-                  {group.people.map((member) => (
-                    <PersonRow
-                      key={member.user.id}
-                      member={member}
-                      departments={byUser.get(member.user.id) ?? []}
-                      online={presence.data?.[member.user.id] === 'online'}
-                    />
-                  ))}
-                </ul>
-              </section>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((member) => (
+              <PersonCard
+                key={member.user.id}
+                member={member}
+                departments={byUser.get(member.user.id) ?? []}
+                online={presence.data?.[member.user.id] === 'online'}
+                isMe={member.user.id === me?.id}
+              />
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </div>
