@@ -108,12 +108,12 @@ Specification and the brand sheet in `docs/specs/`.
 | `/messages`, `/messages/:id` | Direct, group and channel conversations, in realtime                      |
 | `/channels`                  | Browse, join and create channels                                          |
 | `/people`, `/people/:id`     | Directory by department with presence, and profiles                       |
-| `/notifications`             | Activity about you, grouped by day                                        |
 | `/search`                    | People, posts, channels and messages (also in the Ctrl/Cmd+K palette)     |
 | `/settings`                  | Profile, password, theme, language and organizations                      |
 | `/admin`                     | Members, invitations, departments, audit log, organization (by role)      |
 | `/invite?token=`             | Accept an invitation link                                                 |
 
+- Activity about you lives in the bell in the top bar, grouped by day, not on a page of its own.
 - The UI is in Vietnamese by default, with English one click away. Light and dark themes follow the
   system.
 - Sign-in goes through the Next.js server: the refresh token stays in an httpOnly cookie, and only a
@@ -128,21 +128,33 @@ Specification and the brand sheet in `docs/specs/`.
 
 ## Authentication
 
-| Method | Endpoint                       | Auth   | Description                                   |
-| ------ | ------------------------------ | ------ | --------------------------------------------- |
-| POST   | `/api/v1/auth/register`        | -      | Create an account (joins the default org)     |
-| POST   | `/api/v1/auth/login`           | -      | Returns `access_token` + `refresh_token`      |
-| POST   | `/api/v1/auth/refresh`         | -      | Rotates the refresh token, returns a new pair |
-| POST   | `/api/v1/auth/logout`          | -      | Ends the session of a refresh token           |
-| POST   | `/api/v1/auth/change-password` | Bearer | Changes password, signs out other sessions    |
-| GET    | `/api/v1/users/me`             | Bearer | Current profile                               |
-| PUT    | `/api/v1/users/me`             | Bearer | Update username, display name, avatar, bio    |
-| GET    | `/api/v1/users/:id`            | Bearer | Profile of someone sharing an organization    |
+| Method | Endpoint                       | Auth   | Description                                    |
+| ------ | ------------------------------ | ------ | ---------------------------------------------- |
+| POST   | `/api/v1/auth/register`        | -      | Create an account (joins the default org)      |
+| POST   | `/api/v1/auth/login`           | -      | Returns `access_token` + `refresh_token`       |
+| POST   | `/api/v1/auth/oauth/google`    | -      | Signs in with a Google ID token                |
+| POST   | `/api/v1/auth/oauth/link`      | -      | Links Google to an existing account (password) |
+| POST   | `/api/v1/auth/refresh`         | -      | Rotates the refresh token, returns a new pair  |
+| POST   | `/api/v1/auth/logout`          | -      | Ends the session of a refresh token            |
+| POST   | `/api/v1/auth/change-password` | Bearer | Changes password, signs out other sessions     |
+| GET    | `/api/v1/users/me`             | Bearer | Current profile                                |
+| PUT    | `/api/v1/users/me`             | Bearer | Update username, display name, avatar, bio     |
+| GET    | `/api/v1/users/:id`            | Bearer | Profile of someone sharing an organization     |
+| PUT    | `/api/v1/users/me/avatar`      | Bearer | Sets the profile picture to an uploaded file   |
+| DELETE | `/api/v1/users/me/avatar`      | Bearer | Removes the profile picture                    |
+| GET    | `/api/v1/avatars/:fileId`      | -      | Redirects to the picture, cacheable            |
 
 - Access tokens are HS256 JWTs valid for 15 minutes and carry only `sub` (user) and `sid`
   (session). Permissions are resolved server-side on every request, never read from the token.
 - Refresh tokens are random 256-bit strings valid for 30 days; only their SHA-256 hash is stored.
   Each refresh rotates the token. Replaying a used token revokes the whole session.
+- Sign in with Google runs the authorization code flow with PKCE on the Next.js server; the API
+  verifies the ID token itself against Google's JWKS, including the nonce (ADR-020).
+- A Google account is never linked to an existing account by matching e-mail addresses, because
+  registration does not verify them. The API answers `409 ACCOUNT_LINK_REQUIRED` with a link token
+  valid for 10 minutes, and the link only happens after the password is confirmed.
+- Profile pictures are ordinary uploads: the file is uploaded like any other, then set as the
+  avatar. `/api/v1/avatars/:fileId` is public so pictures can be cached and shown anywhere.
 - Deactivated accounts lose access immediately, even with an unexpired access token.
 - Login answers identically for unknown emails and wrong passwords, and auth endpoints are
   rate-limited.
@@ -345,3 +357,34 @@ truncate tables. Migrations are applied to it automatically before the suite sta
 Status codes: 400 validation, 401 authentication, 403 authorization, 404 not found, 409 conflict,
 413 payload too large, 422 rejected content, 429 rate limit, 500 unexpected, 503 dependency
 unavailable.
+
+## Deploying
+
+Both apps run under PM2 behind Nginx: `nexa-api` on port 4100 and `nexa-web` on port 3100, each
+with its own subdomain and certificate. Nginx proxies `/socket.io/` with the upgrade headers, and
+the API runs with `TRUST_PROXY=1` so rate limits and logs see the real client address.
+
+Updating a running server:
+
+```bash
+git pull --ff-only
+pnpm install --frozen-lockfile
+pnpm --filter @nexa/api db:generate   # the generated client is not in the repository
+pnpm --filter @nexa/api db:deploy     # apply new migrations
+pnpm --filter @nexa/api build
+pnpm --filter @nexa/web build
+pm2 restart nexa-api nexa-web --update-env
+```
+
+`db:generate` is not optional. The Prisma client is generated into `apps/api/src/generated`, which
+is ignored by git, so a server that skips this step keeps a client built from an older schema: new
+models are simply `undefined` at runtime, and the first request that touches one fails with
+`Cannot read properties of undefined`.
+
+The production `.env` is not a copy of the development one. On the server PostgreSQL, Redis and
+MongoDB are reached over localhost without TLS (`DATABASE_SSL=false`, no certificate to pin, and
+`redis://` rather than `rediss://`), and `PUBLIC_API_URL` must be the public API address so avatar
+redirects point at something the browser can reach.
+
+After deploying, `GET /ready` reports the database and Redis, and `pm2 logs nexa-api` shows startup
+errors as JSON.
