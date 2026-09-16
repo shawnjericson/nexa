@@ -8,5 +8,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RegisterPage() {
-  return <SignUpForm />;
+  return <SignUpForm googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID)} />;
 }

@@ -1,11 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { REFRESH_COOKIE, SESSION_COOKIE_PATH, SESSION_HINT_COOKIE } from '@/lib/session-cookies';
+import {
+  OAUTH_COOKIE_PATH,
+  REFRESH_COOKIE,
+  SESSION_COOKIE_PATH,
+  SESSION_HINT_COOKIE,
+} from '@/lib/session-cookies';
 
 /** Where the Next.js server reaches the API. */
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 // Matches REFRESH_TOKEN_TTL_DAYS of the API; the API decides whether a token is still valid.
 const REFRESH_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+/** A sign-in that left the site has to come back within this time. */
+const OAUTH_MAX_AGE_SECONDS = 10 * 60;
 const secure = process.env.NODE_ENV === 'production';
 
 /** Extra origins allowed to use the session routes, for proxies that don't pass the public host. */
@@ -56,9 +63,28 @@ export function forbidden(): NextResponse {
 }
 
 /**
- * POSTs to /api/v1{path}, passing the client's user agent and address along. When the API can't
- * be reached, answers 503 in the API's error format instead of failing the route with a bare 500.
+ * The address the browser used. Redirects and the OAuth redirect URI need it rather than the
+ * upstream address a proxy forwards to; PUBLIC_APP_URL settles it when the proxy passes neither
+ * the host nor the protocol.
  */
+export function publicOrigin(request: NextRequest): string {
+  const configured = process.env.PUBLIC_APP_URL?.trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const host =
+    firstValue(request.headers.get('x-forwarded-host')) ?? firstValue(request.headers.get('host'));
+  if (!host) return request.nextUrl.origin;
+  const protocol =
+    firstValue(request.headers.get('x-forwarded-proto')) ??
+    request.nextUrl.protocol.replace(':', '');
+  return `${protocol}://${host}`;
+}
+
+/** An absolute URL of this app, for redirects. */
+export function appUrl(request: NextRequest, path: string): string {
+  return new URL(path, `${publicOrigin(request)}/`).toString();
+}
+
+/** POSTs to /api/v1{path}, passing the client's user agent and address along. */
 export async function callApi(
   path: string,
   body: unknown,
@@ -77,6 +103,7 @@ export async function callApi(
       cache: 'no-store',
     });
   } catch {
+    // Unreachable API: answer the way the API would, so the page can say so.
     return Response.json(
       { success: false, status: 503, error: 'The API is unavailable', code: 'API_UNAVAILABLE' },
       { status: 503 },
@@ -95,18 +122,44 @@ export async function relayError(response: Response): Promise<NextResponse> {
   return NextResponse.json(body, { status: response.status });
 }
 
-/**
- * Turns an API token response into the browser's session: the refresh token goes into the
- * httpOnly cookie, and only the short-lived access token reaches page scripts.
- */
-export async function startSession(response: Response): Promise<NextResponse> {
-  if (!response.ok) return relayError(response);
-  const { data } = (await response.json()) as { data: Tokens };
-  const result = NextResponse.json({
-    success: true,
-    data: { access_token: data.access_token, expires_in: data.expires_in },
+// ─── Sign-in with a provider (ADR-020) ─────────────────────────────────────
+
+/** Keeps the state of a sign-in that leaves the site, out of reach of page scripts. */
+export function setOauthCookie(result: NextResponse, name: string, value: unknown): NextResponse {
+  result.cookies.set(name, JSON.stringify(value), {
+    httpOnly: true,
+    secure,
+    // lax: the provider sends the browser back with a top-level GET, which still carries it.
+    sameSite: 'lax',
+    path: OAUTH_COOKIE_PATH,
+    maxAge: OAUTH_MAX_AGE_SECONDS,
   });
-  result.cookies.set(REFRESH_COOKIE, data.refresh_token, {
+  return result;
+}
+
+export function readOauthCookie<T>(request: NextRequest, name: string): T | null {
+  const raw = request.cookies.get(name)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function clearOauthCookie(result: NextResponse, name: string): NextResponse {
+  result.cookies.set(name, '', { path: OAUTH_COOKIE_PATH, maxAge: 0 });
+  return result;
+}
+
+// ─── The browser's session ─────────────────────────────────────────────────
+
+/**
+ * Puts the session on a response: the refresh token in an httpOnly cookie, plus a hint cookie for
+ * routing. Only the short-lived access token reaches page scripts.
+ */
+function applySession(result: NextResponse, tokens: Tokens): NextResponse {
+  result.cookies.set(REFRESH_COOKIE, tokens.refresh_token, {
     httpOnly: true,
     secure,
     sameSite: 'lax',
@@ -121,6 +174,28 @@ export async function startSession(response: Response): Promise<NextResponse> {
     maxAge: REFRESH_MAX_AGE_SECONDS,
   });
   return result;
+}
+
+/** Answers the page with the access token and starts the session. */
+export async function startSession(response: Response): Promise<NextResponse> {
+  if (!response.ok) return relayError(response);
+  const { data } = (await response.json()) as { data: Tokens };
+  return applySession(
+    NextResponse.json({
+      success: true,
+      data: { access_token: data.access_token, expires_in: data.expires_in },
+    }),
+    data,
+  );
+}
+
+/** Starts the session and sends the browser on, for flows that come back from another site. */
+export async function startSessionAndRedirect(
+  response: Response,
+  to: string,
+): Promise<NextResponse> {
+  const { data } = (await response.json()) as { data: Tokens };
+  return applySession(NextResponse.redirect(to), data);
 }
 
 export function endSession(result: NextResponse): NextResponse {

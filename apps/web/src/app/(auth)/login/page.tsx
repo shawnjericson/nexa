@@ -8,5 +8,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function LoginPage() {
-  return <SignInForm />;
+  // Google sign-in runs on this server (ADR-020), so the client id decides whether to offer it.
+  return <SignInForm googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID)} />;
 }

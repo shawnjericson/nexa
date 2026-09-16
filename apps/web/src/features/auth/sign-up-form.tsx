@@ -9,9 +9,11 @@ import { TextField } from '@/components/ui/input';
 import { useI18n } from '@/i18n/provider';
 import { describeError, fieldErrors } from '@/lib/api/errors';
 import { signUp } from '@/lib/auth/session';
+import { cn } from '@/lib/cn';
+import { GoogleButton } from './google-button';
 import { safeNextPath } from './safe-next-path';
 
-export function SignUpForm() {
+export function SignUpForm({ googleEnabled }: { googleEnabled: boolean }) {
   const i18n = useI18n();
   const { t } = i18n;
   const router = useRouter();
@@ -40,10 +42,27 @@ export function SignUpForm() {
 
   return (
     <div>
-      <h1 className="text-title font-semibold tracking-tight">{t('auth.signUpTitle')}</h1>
-      <p className="mt-1 text-sm text-muted">{t('auth.signUpSubtitle')}</p>
+      <h1 className="text-[26px] font-semibold tracking-tight">{t('auth.signUpTitle')}</h1>
+      <p className="mt-1.5 text-sm text-muted">{t('auth.signUpSubtitle')}</p>
 
-      <form onSubmit={submit} className="mt-8 flex flex-col gap-4" noValidate>
+      {googleEnabled && (
+        <>
+          <div className="mt-6">
+            <GoogleButton next={next} label={t('auth.continueWithGoogle')} />
+          </div>
+          <div className="my-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted">{t('auth.orContinueWith')}</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+
+      <form
+        onSubmit={submit}
+        className={cn('flex flex-col gap-4', !googleEnabled && 'mt-8')}
+        noValidate
+      >
         <TextField
           label={t('auth.displayName')}
           autoComplete="name"

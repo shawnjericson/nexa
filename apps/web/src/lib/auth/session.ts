@@ -117,6 +117,23 @@ export async function signUp(input: {
   emit(true);
 }
 
+/**
+ * The account a sign-in with a provider is waiting to be connected to, or null when there is
+ * none (the request expired, or the page was opened directly). See ADR-020.
+ */
+export async function pendingAccountLink(): Promise<{ provider: string; email: string } | null> {
+  const response = await fetch('/api/session/oauth/link', { credentials: 'same-origin' });
+  if (!response.ok) return null;
+  const body = (await response.json()) as { data: { provider: string; email: string } };
+  return body.data;
+}
+
+/** Confirms the existing account's password, which connects the provider and signs in. */
+export async function completeAccountLink(password: string): Promise<void> {
+  await readTokens(await post('oauth/link', { password }));
+  emit(true);
+}
+
 export async function signOut(): Promise<void> {
   await post('logout').catch(() => undefined);
   current = null;
