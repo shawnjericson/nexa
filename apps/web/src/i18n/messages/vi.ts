@@ -192,6 +192,21 @@ export const vi = {
   organization: {
     noneTitle: 'Bạn chưa thuộc tổ chức nào',
     noneDescription: 'Hãy nhờ quản trị viên của công ty gửi lời mời vào NEXA.',
+    onboarding: {
+      title: 'Bắt đầu với NEXA',
+      subtitle: 'Tạo không gian làm việc cho nhóm của bạn, hoặc tham gia nơi bạn được mời.',
+      createTitle: 'Tạo không gian làm việc',
+      createDescription:
+        'Dành cho nhóm hoặc công ty của bạn. Bạn là chủ sở hữu và mời đồng nghiệp vào sau.',
+      nameLabel: 'Tên tổ chức',
+      namePlaceholder: 'Công ty Ánh Dương',
+      createAction: 'Tạo và bắt đầu',
+      created: 'Đã tạo “{name}”. Mời đồng nghiệp vào thôi.',
+      inviteTitle: 'Tôi có lời mời',
+      inviteDescription: 'Dán liên kết trong lời mời, hoặc mã đi kèm liên kết đó.',
+      tokenLabel: 'Liên kết hoặc mã mời',
+      tokenPlaceholder: 'https://nexa…/invite?token=…',
+    },
     roles: {
       OWNER: 'Chủ sở hữu',
       ADMIN: 'Quản trị viên',

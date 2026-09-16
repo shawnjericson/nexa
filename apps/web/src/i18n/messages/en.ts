@@ -189,6 +189,21 @@ export const en: Messages = {
   organization: {
     noneTitle: "You're not in an organization yet",
     noneDescription: "Ask your company's administrator to invite you to NEXA.",
+    onboarding: {
+      title: 'Start with NEXA',
+      subtitle: 'Make a workspace for your team, or join the one that invited you.',
+      createTitle: 'Create a workspace',
+      createDescription:
+        'For your team or company. You own it, and invite your colleagues afterwards.',
+      nameLabel: 'Organization name',
+      namePlaceholder: 'Sunrise Ltd',
+      createAction: 'Create and start',
+      created: '“{name}” is ready. Time to invite your colleagues.',
+      inviteTitle: 'I have an invitation',
+      inviteDescription: 'Paste the link from your invitation, or the code that came with it.',
+      tokenLabel: 'Invitation link or code',
+      tokenPlaceholder: 'https://nexa…/invite?token=…',
+    },
     roles: {
       OWNER: 'Owner',
       ADMIN: 'Admin',

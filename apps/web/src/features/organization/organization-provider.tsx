@@ -2,12 +2,11 @@
 
 import { unwrap } from '@nexa/api-client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2 } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { EmptyState, ErrorState } from '@/components/ui/states';
-import { useI18n } from '@/i18n/provider';
+import { ErrorState } from '@/components/ui/states';
 import { api, setActiveOrganizationId } from '@/lib/api/client';
 import { canAdminister } from '@/lib/permissions';
+import { Onboarding } from './onboarding';
 
 const STORAGE_KEY = 'nexa.activeOrganizationId';
 
@@ -49,7 +48,6 @@ export function OrganizationProvider({
   fallback: ReactNode;
   children: ReactNode;
 }) {
-  const { t } = useI18n();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['organizations'], queryFn: fetchOrganizations });
   const [activeId, setActiveId] = useState<string | null>(readStoredId);
@@ -98,13 +96,15 @@ export function OrganizationProvider({
       />
     );
   }
+  // An account with no workspace yet. Both ways into one are here rather than behind a page that
+  // would itself need a workspace to reach.
   if (!value) {
     return (
-      <EmptyState
-        className="min-h-dvh justify-center"
-        icon={Building2}
-        title={t('organization.noneTitle')}
-        description={t('organization.noneDescription')}
+      <Onboarding
+        onJoined={async (id) => {
+          await queryClient.invalidateQueries({ queryKey: ['organizations'] });
+          switchTo(id);
+        }}
       />
     );
   }
