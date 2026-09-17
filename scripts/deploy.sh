@@ -60,7 +60,10 @@ pnpm --filter @nexa/api build
 pnpm --filter @nexa/web build
 
 say "Restarting"
-pm2 restart nexa-api nexa-web --update-env
+# CI logs are public. pm2 prints a table of every process on the server - other people's apps
+# included - so only say what was restarted.
+pm2 restart nexa-api nexa-web --update-env >/dev/null
+echo "restarted nexa-api and nexa-web"
 
 # A failed check leaves the new code in place on purpose: migrations have already run,
 # so rolling the code back automatically could be worse than stopping for a human.
@@ -75,12 +78,13 @@ for attempt in $(seq 1 30); do
 done
 if [ "${api_ok:-}" != 1 ]; then
   echo "the API did not become ready" >&2
-  pm2 logs nexa-api --lines 40 --nostream >&2 || true
+  # Only the error stream: the request log holds visitors' addresses, and this ends up in public CI logs.
+  pm2 logs nexa-api --err --lines 40 --nostream >&2 || true
   exit 1
 fi
 curl -fsS --max-time 10 -o /dev/null "$WEB_URL" || {
   echo "the web app did not answer" >&2
-  pm2 logs nexa-web --lines 40 --nostream >&2
+  pm2 logs nexa-web --err --lines 40 --nostream >&2
   exit 1
 }
 
