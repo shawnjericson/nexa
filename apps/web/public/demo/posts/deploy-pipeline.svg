@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675" font-family="Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"><rect width="1200" height="675" fill="#f7f7f5"/>
+  <text x="80" y="110" font-size="44" font-weight="700" fill="#171717" text-anchor="start">Triển khai tự động</text>
+  <text x="80" y="156" font-size="24" font-weight="400" fill="#6b6b67" text-anchor="start">Mỗi lần đẩy code: kiểm thử xong mới lên máy chủ</text>
+  <rect x="80" y="220" width="230" height="150" rx="16" fill="#ffffff" stroke="#e7e7e2" stroke-width="2"/>
+    <circle cx="122" cy="262" r="20" fill="#e4f2ee"/>
+    <path d="M112 262 l7 7 l13 -14" fill="none" stroke="#087f6c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="106" y="320" font-size="26" font-weight="700" fill="#171717" text-anchor="start">Đẩy code</text><text x="106" y="352" font-size="17" font-weight="400" fill="#6b6b67" text-anchor="start">nhánh master</text><path d="M318 295 h26 m-10 -10 l10 10 l-10 10" fill="none" stroke="#087f6c" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="350" y="220" width="230" height="150" rx="16" fill="#ffffff" stroke="#e7e7e2" stroke-width="2"/>
+    <circle cx="392" cy="262" r="20" fill="#e4f2ee"/>
+    <path d="M382 262 l7 7 l13 -14" fill="none" stroke="#087f6c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="376" y="320" font-size="26" font-weight="700" fill="#171717" text-anchor="start">Kiểm thử</text><text x="376" y="352" font-size="17" font-weight="400" fill="#6b6b67" text-anchor="start">231 test, PostgreSQL thật</text><path d="M588 295 h26 m-10 -10 l10 10 l-10 10" fill="none" stroke="#087f6c" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="620" y="220" width="230" height="150" rx="16" fill="#ffffff" stroke="#e7e7e2" stroke-width="2"/>
+    <circle cx="662" cy="262" r="20" fill="#e4f2ee"/>
+    <path d="M652 262 l7 7 l13 -14" fill="none" stroke="#087f6c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="646" y="320" font-size="26" font-weight="700" fill="#171717" text-anchor="start">Build</text><text x="646" y="352" font-size="17" font-weight="400" fill="#6b6b67" text-anchor="start">API và web</text><path d="M858 295 h26 m-10 -10 l10 10 l-10 10" fill="none" stroke="#087f6c" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="890" y="220" width="230" height="150" rx="16" fill="#ffffff" stroke="#e7e7e2" stroke-width="2"/>
+    <circle cx="932" cy="262" r="20" fill="#e4f2ee"/>
+    <path d="M922 262 l7 7 l13 -14" fill="none" stroke="#087f6c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="916" y="320" font-size="26" font-weight="700" fill="#171717" text-anchor="start">Lên máy chủ</text><text x="916" y="352" font-size="17" font-weight="400" fill="#6b6b67" text-anchor="start">tự khởi động lại</text>
+  <text x="80" y="450" font-size="22" font-weight="600" fill="#6b6b67" text-anchor="start">Thời gian phát hành một thay đổi</text>
+  <text x="80" y="505" font-size="22" font-weight="600" fill="#171717" text-anchor="start">Trước</text><rect x="200" y="482" width="840" height="34" rx="17" fill="#e3e3de"/><text x="1060" y="507" font-size="22" font-weight="700" fill="#6b6b67" text-anchor="start">~20 phút</text>
+  <text x="80" y="575" font-size="22" font-weight="600" fill="#171717" text-anchor="start">Bây giờ</text><rect x="200" y="552" width="160" height="34" rx="17" fill="#087f6c"/><text x="380" y="577" font-size="22" font-weight="700" fill="#087f6c" text-anchor="start">dưới 4 phút</text></svg>

@@ -143,10 +143,20 @@ function ColleagueRow({ member, online }: { member: Colleague; online: boolean }
   );
 }
 
+/** Every picture a post shows, including the exam contract's image_url - which the feed shows too. */
+function imagesOf(post: Post): { key: string; url: string }[] {
+  return [
+    ...(post.image_url ? [{ key: post.image_url, url: post.image_url }] : []),
+    ...post.attachments
+      .filter((attachment) => attachment.kind === 'image')
+      .map((attachment) => ({ key: attachment.id, url: attachment.url })),
+  ];
+}
+
 function PostPreview({ post }: { post: Post }) {
   const { t, formatRelative } = useI18n();
   const name = post.author?.display_name ?? t('common.formerMember');
-  const images = post.attachments.filter((attachment) => attachment.kind === 'image').slice(0, 4);
+  const images = imagesOf(post).slice(0, 4);
   return (
     <Link
       href={`/feed/${post.id}`}
@@ -162,11 +172,11 @@ function PostPreview({ post }: { post: Post }) {
         <div className="mt-2 flex gap-1">
           {images.map((image) => (
             <img
-              key={image.id}
+              key={image.key}
               src={image.url}
               alt=""
               loading="lazy"
-              className="size-16 rounded-md object-cover"
+              className="h-16 w-28 rounded-md border border-border object-cover"
             />
           ))}
         </div>
@@ -254,21 +264,30 @@ export function HomeOverview() {
             </SectionTitle>
             <Link
               href={`/feed/${announcement.id}`}
-              className="block rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40"
+              className="block overflow-hidden rounded-xl border border-border bg-surface transition-colors hover:border-accent/40"
             >
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-accent uppercase">
-                <Megaphone className="size-3.5" aria-hidden />
-                {t('feed.announcement')}
-              </p>
-              <p className="mt-2 line-clamp-4 text-sm whitespace-pre-line text-fg">
-                {announcement.content}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                {t('home.publishedBy', {
-                  name: announcement.author?.display_name ?? t('common.formerMember'),
-                })}{' '}
-                · {formatDate(announcement.created_at, { day: 'numeric', month: 'short' })}
-              </p>
+              {imagesOf(announcement)[0] && (
+                <img
+                  src={imagesOf(announcement)[0]?.url}
+                  alt=""
+                  className="aspect-[16/7] w-full border-b border-border object-cover"
+                />
+              )}
+              <div className="p-4">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-accent uppercase">
+                  <Megaphone className="size-3.5" aria-hidden />
+                  {t('feed.announcement')}
+                </p>
+                <p className="mt-2 line-clamp-4 text-sm whitespace-pre-line text-fg">
+                  {announcement.content}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  {t('home.publishedBy', {
+                    name: announcement.author?.display_name ?? t('common.formerMember'),
+                  })}{' '}
+                  · {formatDate(announcement.created_at, { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
             </Link>
           </section>
         )}

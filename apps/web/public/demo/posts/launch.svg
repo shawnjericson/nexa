@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675" font-family="Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"><defs><linearGradient id="band" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#087F6C"/><stop offset="1" stop-color="#35B695"/></linearGradient><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#03201d"/><stop offset="1" stop-color="#0a5b50"/></linearGradient>
+  <radialGradient id="glow"><stop offset="0" stop-color="#7fe4cf" stop-opacity="0.45"/><stop offset="1" stop-color="#7fe4cf" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="675" fill="url(#sky)"/>
+  <circle cx="930" cy="170" r="330" fill="url(#glow)"/>
+  <circle cx="1120" cy="60" r="380" fill="none" stroke="#8ceadb" stroke-opacity="0.3" stroke-width="2"/>
+  <circle cx="140" cy="90" r="2" fill="#d8fff5" fill-opacity="0.7"/><circle cx="330" cy="160" r="2" fill="#d8fff5" fill-opacity="0.7"/><circle cx="560" cy="70" r="2" fill="#d8fff5" fill-opacity="0.7"/><circle cx="760" cy="250" r="2" fill="#d8fff5" fill-opacity="0.7"/><circle cx="1040" cy="380" r="2" fill="#d8fff5" fill-opacity="0.7"/><circle cx="230" cy="300" r="2" fill="#d8fff5" fill-opacity="0.7"/>
+  <path d="M0 470 L180 390 L330 450 L480 360 L640 440 L800 370 L980 430 L1200 350 L1200 675 L0 675 Z" fill="#0b4c44"/>
+  <path d="M0 560 L200 500 L380 555 L560 490 L740 545 L920 495 L1200 540 L1200 675 L0 675 Z" fill="#083b35"/>
+  <g transform="translate(96 150) scale(1.6)">
+  <rect x="6" y="8" width="16" height="48" rx="5" fill="#087F6C"/>
+  <line x1="14" y1="16" x2="50" y2="48" stroke="url(#band)" stroke-width="16" stroke-linecap="round"/>
+  <rect x="42" y="8" width="16" height="20" rx="4.5" fill="#0C957E"/></g>
+  <text x="210" y="222" font-size="54" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="8">NEXA</text>
+  <text x="100" y="330" font-size="68" font-weight="600" fill="#ffffff" text-anchor="start">Chính thức ra mắt</text>
+  <text x="102" y="390" font-size="30" font-weight="500" fill="#7fe4cf" text-anchor="start" letter-spacing="3">Work. Connect. Grow.</text></svg>

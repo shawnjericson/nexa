@@ -25,6 +25,15 @@ import { SYSTEM_ROLES } from '../src/modules/organization';
 import { prisma } from '../src/infrastructure/database/prisma';
 
 const DEMO_DOMAIN = 'demo.nexa.local';
+/** Demo visitors ("try the demo"); --reset clears them along with the invented people. */
+const GUEST_DOMAIN = 'guest.nexa.local';
+/**
+ * Pictures are served by the web app (apps/web/public/demo), so they need no storage, no third
+ * party and no network at seed time. The paths are relative, which is what the web app renders.
+ * Avatars: DiceBear "Notionists" by Zoish, CC0 1.0. Post images: drawn for these posts.
+ */
+const avatarOf = (username: string) => `/demo/avatars/${username}.svg`;
+const postImage = (name: string) => `/demo/posts/${name}.svg`;
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -84,6 +93,7 @@ const DEPARTMENTS = [
 const POSTS = [
   {
     by: 'an.nguyen',
+    image: 'launch',
     type: 'ANNOUNCEMENT' as const,
     minutes: 60 * 20,
     content:
@@ -95,6 +105,7 @@ const POSTS = [
   },
   {
     by: 'chi.le',
+    image: 'homepage-design',
     minutes: 60 * 9,
     content:
       'Bản thiết kế mới của màn hình trang chủ đã xong vòng hai. Em gọn lại phần đầu trang và đưa hội thoại đang dở lên trên, ai góp ý gì thì để lại bình luận giúp em ạ.',
@@ -105,6 +116,7 @@ const POSTS = [
   },
   {
     by: 'dung.pham',
+    image: 'deploy-pipeline',
     minutes: 60 * 5,
     content:
       'Hệ thống đã chuyển sang triển khai tự động: đẩy code lên nhánh chính là tự kiểm thử rồi tự lên máy chủ. Thời gian phát hành một thay đổi giảm từ khoảng 20 phút xuống dưới 4 phút.',
@@ -112,6 +124,7 @@ const POSTS = [
   },
   {
     by: 'ha.vo',
+    image: 'workshop',
     minutes: 60 * 3,
     content:
       'Tuần sau công ty có buổi chia sẻ nội bộ về cách viết tài liệu kỹ thuật cho người không chuyên. Anh chị quan tâm thì thả tim vào bài này để em chốt số lượng ạ.',
@@ -119,6 +132,7 @@ const POSTS = [
   },
   {
     by: 'linh.bui',
+    image: 'readers-chart',
     minutes: 95,
     content:
       'Bài viết giới thiệu sản phẩm đã lên trang chủ. Số người đọc trong 6 giờ đầu gấp đôi bài gần nhất, phần lớn đến từ nguồn giới thiệu chứ không phải quảng cáo.',
@@ -126,6 +140,7 @@ const POSTS = [
   },
   {
     by: 'minh.hoang',
+    image: 'feedback-chart',
     minutes: 25,
     content:
       'Tổng hợp phản hồi khách hàng tháng này: khen nhiều nhất là tốc độ phản hồi, phàn nàn nhiều nhất vẫn là phần xuất báo cáo. Em để chi tiết trong kênh kinh doanh.',
@@ -274,7 +289,12 @@ async function main() {
 
   if (has('reset')) {
     const demo = await prisma.user.findMany({
-      where: { email: { endsWith: `@${DEMO_DOMAIN}` } },
+      where: {
+        OR: [
+          { email: { endsWith: `@${DEMO_DOMAIN}` } },
+          { email: { endsWith: `@${GUEST_DOMAIN}` } },
+        ],
+      },
       select: { id: true },
     });
     const ids = demo.map((user) => user.id);
@@ -294,7 +314,7 @@ async function main() {
       await prisma.refreshToken.deleteMany({ where: { userId: { in: ids } } });
       await prisma.user.deleteMany({ where: { id: { in: ids } } });
     }
-    console.log(`Removed ${ids.length} demo people and their content.`);
+    console.log(`Removed ${ids.length} demo people and guests, and their content.`);
   }
 
   const password = process.env.SEED_PASSWORD ?? randomBytes(24).toString('base64url');
@@ -335,12 +355,13 @@ async function main() {
     const email = `${person.username}@${DEMO_DOMAIN}`;
     const user = await prisma.user.upsert({
       where: { email },
-      update: { displayName: person.name, bio: person.bio },
+      update: { displayName: person.name, bio: person.bio, avatarUrl: avatarOf(person.username) },
       create: {
         email,
         username: person.username,
         displayName: person.name,
         bio: person.bio,
+        avatarUrl: avatarOf(person.username),
         passwordHash,
       },
       select: { id: true },
@@ -401,6 +422,7 @@ async function main() {
         organizationId: organization.id,
         authorId: id(item.by),
         content: item.content,
+        imageUrl: postImage(item.image),
         type: item.type ?? 'GENERAL',
         createdAt,
         updatedAt: createdAt,

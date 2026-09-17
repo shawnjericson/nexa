@@ -17,5 +17,7 @@ process.env.MONGODB_URI = '';
 process.env.S3_BUCKET = process.env.TEST_S3_BUCKET ?? '';
 // The web app may run on 3001 when another app already uses 3000.
 process.env.CORS_ORIGINS = 'http://localhost:3000,http://localhost:3001';
+// So the landing page's "try the demo" works here too (seed it with scripts/seed-demo.ts).
+process.env.DEMO_ORG_SLUG ??= 'demo';
 
 await import('../src/server');

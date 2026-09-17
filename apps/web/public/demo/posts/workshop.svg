@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675" font-family="Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"><defs><radialGradient id="glow2"><stop offset="0" stop-color="#7fe4cf" stop-opacity="0.3"/><stop offset="1" stop-color="#7fe4cf" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="675" fill="#04211e"/>
+  <circle cx="1080" cy="560" r="300" fill="url(#glow2)"/>
+  <rect x="80" y="80" width="1040" height="515" rx="24" fill="#0a3a34" stroke="#1f5c53" stroke-width="2"/>
+  <rect x="130" y="130" width="230" height="44" rx="22" fill="#7fe4cf"/>
+  <text x="245" y="160" font-size="18" font-weight="700" fill="#04211e" text-anchor="middle" letter-spacing="2">CHIA SẺ NỘI BỘ</text>
+  <text x="130" y="262" font-size="58" font-weight="700" fill="#ffffff" text-anchor="start">Viết tài liệu kỹ thuật</text>
+  <text x="130" y="332" font-size="58" font-weight="700" fill="#ffffff" text-anchor="start">cho người không chuyên</text>
+  <rect x="130" y="396" width="80" height="4" rx="2" fill="#7fe4cf"/>
+  <text x="130" y="470" font-size="28" font-weight="500" fill="#d6f5ee" text-anchor="start">Thứ Năm tuần sau · 15:00 – 16:30</text>
+  <text x="130" y="520" font-size="24" font-weight="400" fill="#9fd3c8" text-anchor="start">Phòng họp lớn, tầng 5 · Thả tim vào bài để giữ chỗ</text>
+  <rect x="860" y="150" width="210" height="210" rx="20" fill="#0d4a42"/>
+  <text x="965" y="238" font-size="22" font-weight="700" fill="#7fe4cf" text-anchor="middle" letter-spacing="3">THÁNG 10</text>
+  <text x="965" y="322" font-size="96" font-weight="700" fill="#ffffff" text-anchor="middle">24</text></svg>
