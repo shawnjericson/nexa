@@ -30,7 +30,8 @@ FROM generate_series(1, :users) AS g;
 
 CREATE TEMP TABLE people AS
 SELECT row_number() OVER (ORDER BY created_at DESC, id) AS n, id
-FROM users WHERE email LIKE '%@load.nexa.local';
+-- The generated people only: the owner who created the organization is already a member.
+FROM users WHERE email LIKE 'user%@load.nexa.local';
 CREATE UNIQUE INDEX ON people (n);
 ANALYZE people;
 SELECT count(*) AS people FROM people \gset

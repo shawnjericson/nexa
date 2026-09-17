@@ -34,7 +34,7 @@ const sign = async (userId: string) =>
   (await tokens.issue({ userId, sessionId: randomUUID() })).token;
 
 const people = await prisma.user.findMany({
-  where: { email: { endsWith: '@load.nexa.local' } },
+  where: { email: { startsWith: 'user', endsWith: '@load.nexa.local' } },
   orderBy: { createdAt: 'desc' },
   take: PEOPLE,
   select: { id: true },
