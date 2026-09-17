@@ -53,6 +53,12 @@ export interface AuthServiceDeps {
 }
 
 const DAY_MS = 86_400_000;
+/**
+ * How long a revoked refresh token is kept. A rotated token presented again is how a stolen one
+ * gets caught (the whole session is revoked), so they are not deleted straight away - but every
+ * refresh adds a row, and someone who works in NEXA all day refreshes dozens of times.
+ */
+const REVOKED_TOKEN_RETENTION_DAYS = 7;
 const USERNAME_ATTEMPTS = 6;
 
 /** Usernames to try for an account created from a provider: the email's local part, then variants. */
@@ -192,6 +198,13 @@ export class AuthService {
       sessionId: record.familyId,
     });
     return { accessToken: access.token, expiresIn: access.expiresIn, refreshToken: next.token };
+  }
+
+  /** Deletes refresh tokens that have expired, or were revoked more than a week ago. */
+  pruneRefreshTokens(): Promise<number> {
+    const now = this.now();
+    const revokedBefore = new Date(now.getTime() - REVOKED_TOKEN_RETENTION_DAYS * DAY_MS);
+    return this.deps.refreshTokens.deleteStale(now, revokedBefore);
   }
 
   /** Ends the session the refresh token belongs to. Unknown tokens are ignored (idempotent). */

@@ -71,6 +71,7 @@ export function createApp({
     profileVisibility: organization.profileVisibility,
     config: env,
     externalIdentity,
+    backgroundJobs,
   });
   const users = identity.userDirectory;
   const guard = [identity.requireAuth, organization.requireOrganization];

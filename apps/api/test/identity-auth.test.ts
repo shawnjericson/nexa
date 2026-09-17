@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -6,6 +7,7 @@ import {
   JWT_AUDIENCE,
   JWT_ISSUER,
 } from '../src/modules/identity/infrastructure/jwt-access-token.service';
+import { PrismaRefreshTokenRepository } from '../src/modules/identity/infrastructure/prisma-refresh-token.repository';
 import {
   bearer,
   login,
@@ -226,6 +228,40 @@ describe('refresh token rotation', () => {
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
     }
+  });
+});
+
+describe('refresh token pruning', () => {
+  it('deletes expired and long-revoked tokens, and keeps live sessions working', async () => {
+    const session = await registerAndLogin(app);
+    const userId = session.user.id;
+    const now = new Date();
+    const days = (n: number) => new Date(now.getTime() + n * 86_400_000);
+    const token = (name: string, expiresAt: Date, revokedAt: Date | null) => ({
+      userId,
+      familyId: randomUUID(),
+      tokenHash: createHash('sha256').update(name).digest('hex'),
+      expiresAt,
+      revokedAt,
+    });
+    await prisma.refreshToken.createMany({
+      data: [
+        token('expired', days(-0.01), null),
+        token('revoked last week', days(20), days(-8)),
+        token('revoked yesterday', days(20), days(-1)),
+      ],
+    });
+
+    // A batch of one makes it go round the loop.
+    const deleted = await new PrismaRefreshTokenRepository(prisma).deleteStale(now, days(-7), 1);
+
+    expect(deleted).toBe(2);
+    const left = await prisma.refreshToken.findMany({ where: { userId } });
+    expect(left.map((row) => row.tokenHash)).toContain(
+      createHash('sha256').update('revoked yesterday').digest('hex'),
+    );
+    expect(left).toHaveLength(2);
+    expect((await refresh(session.refreshToken)).status).toBe(200);
   });
 });
 

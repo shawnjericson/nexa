@@ -1,6 +1,8 @@
 import type { PrismaClient } from '../../../generated/prisma/client';
 import type { NewRefreshToken, RefreshTokenRecord, RefreshTokenRepository } from '../domain/ports';
 
+const STALE_BATCH_SIZE = 5_000;
+
 export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -56,5 +58,20 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
       },
       data: { revokedAt: at },
     });
+  }
+
+  async deleteStale(now: Date, revokedBefore: Date, batchSize = STALE_BATCH_SIZE): Promise<number> {
+    let deleted = 0;
+    // In batches, so a backlog never turns into one long statement holding locks on the table.
+    for (;;) {
+      const count = await this.prisma.$executeRaw`
+        DELETE FROM refresh_tokens WHERE id IN (
+          SELECT id FROM refresh_tokens
+          WHERE expires_at <= ${now} OR revoked_at < ${revokedBefore}
+          LIMIT ${batchSize}
+        )`;
+      deleted += count;
+      if (count < batchSize) return deleted;
+    }
   }
 }

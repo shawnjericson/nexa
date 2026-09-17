@@ -1,6 +1,7 @@
 import type { RequestHandler, Router } from 'express';
 import type { Env } from '../../config/env';
 import type { PrismaClient } from '../../generated/prisma/client';
+import { logger } from '../../infrastructure/logger/logger';
 import type { EventBus } from '../../shared/events/event-bus';
 import { AuthService } from './application/auth.service';
 import { UserService } from './application/user.service';
@@ -71,6 +72,8 @@ export interface IdentityModule {
   avatars: AvatarWriter;
 }
 
+const PRUNE_INTERVAL_MS = 60 * 60_000;
+
 export function createIdentityModule(deps: {
   prisma: PrismaClient;
   events: EventBus;
@@ -81,6 +84,8 @@ export function createIdentityModule(deps: {
    * set (tests pass their own keys); null turns Google sign-in off.
    */
   externalIdentity?: ExternalIdentityVerifier | null;
+  /** Start the periodic pruning of used-up refresh tokens (the server does; tests don't). */
+  backgroundJobs?: boolean;
 }): IdentityModule {
   const { prisma, events, profileVisibility, config } = deps;
 
@@ -109,6 +114,17 @@ export function createIdentityModule(deps: {
     externalIdentity,
     linkTokens: new JwtAccountLinkTokens(config.JWT_ACCESS_SECRET),
   });
+  if (deps.backgroundJobs) {
+    setInterval(() => {
+      auth
+        .pruneRefreshTokens()
+        .then((deleted) => {
+          if (deleted > 0) logger.info({ deleted }, 'Pruned refresh tokens');
+        })
+        .catch((err: unknown) => logger.warn({ err }, 'Refresh token pruning failed'));
+    }, PRUNE_INTERVAL_MS).unref();
+  }
+
   const authenticate = createAuthenticator({ accessTokens, users });
   const requireAuth = createRequireAuth(authenticate);
 

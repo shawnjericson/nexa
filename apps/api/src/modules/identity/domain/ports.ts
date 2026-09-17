@@ -106,6 +106,11 @@ export interface RefreshTokenRepository {
   revokeFamily(familyId: string, at: Date): Promise<void>;
   /** Revokes every session of the user except `keepFamilyId`. */
   revokeAllForUser(userId: string, at: Date, keepFamilyId?: string): Promise<void>;
+  /**
+   * Deletes tokens that can never be exchanged again and are no longer worth keeping: expired
+   * ones, and ones revoked before `revokedBefore`. Returns how many were deleted.
+   */
+  deleteStale(now: Date, revokedBefore: Date): Promise<number>;
 }
 
 export interface PasswordHasher {
