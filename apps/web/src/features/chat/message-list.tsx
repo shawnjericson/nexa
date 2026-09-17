@@ -59,6 +59,9 @@ export function MessageList({
 }) {
   const { t, tn, formatDate } = useI18n();
   const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  /** Whether to stay at the latest message while the content grows (see the observer below). */
+  const pinned = useRef(true);
   const anchor = useRef<{ height: number; top: number } | null>(null);
   const initialized = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -84,6 +87,19 @@ export function MessageList({
     else element.scrollTop = element.scrollHeight;
     initialized.current = true;
   }, [messages.length]);
+
+  // Pictures load after the first paint and push the latest message out of view. While the person
+  // is at the bottom, stay there as the content grows.
+  useEffect(() => {
+    const element = scroller.current;
+    const inner = content.current;
+    if (!element || !inner || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (initialized.current && pinned.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, []);
 
   // Older messages were prepended: keep the same messages under the reader's eyes.
   useLayoutEffect(() => {
@@ -118,6 +134,7 @@ export function MessageList({
     const bottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_THRESHOLD_PX;
     setAtBottom(bottom);
+    pinned.current = bottom;
     if (bottom) setUnseen(0);
     if (element.scrollTop < LOAD_OLDER_THRESHOLD_PX && hasOlder && !loadingOlder) {
       anchor.current = { height: element.scrollHeight, top: element.scrollTop };
@@ -164,80 +181,82 @@ export function MessageList({
         aria-label={t('chat.title')}
         className="h-full overflow-y-auto px-2 py-4 md:px-4"
       >
-        {hasOlder ? (
-          <div className="flex h-8 items-center justify-center">
-            {loadingOlder && (
-              <Loader2
-                className="size-4 animate-spin text-muted"
-                aria-label={t('chat.loadOlder')}
-              />
-            )}
-          </div>
-        ) : (
-          <p className="py-6 text-center text-xs text-muted">{t('chat.beginning')}</p>
-        )}
-
-        {messages.map((message, index) => {
-          const previous = messages[index - 1];
-          const newDay = !previous || dayOf(previous.created_at) !== dayOf(message.created_at);
-          const unreadDivider = firstUnread?.id === message.id;
-          const showHeader =
-            newDay ||
-            unreadDivider ||
-            !previous ||
-            previous.deleted !== message.deleted ||
-            previous.sender?.id !== message.sender?.id ||
-            new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >
-              GROUP_WINDOW_MS;
-          const mine = message.sender?.id === meId;
-          return (
-            <Fragment key={message.id}>
-              {newDay && (
-                <div className="my-4 flex items-center gap-3 px-2" role="separator">
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="text-[11px] font-medium text-muted">
-                    {dayLabel(message.created_at)}
-                  </span>
-                  <span className="h-px flex-1 bg-border" />
-                </div>
+        <div ref={content}>
+          {hasOlder ? (
+            <div className="flex h-8 items-center justify-center">
+              {loadingOlder && (
+                <Loader2
+                  className="size-4 animate-spin text-muted"
+                  aria-label={t('chat.loadOlder')}
+                />
               )}
-              {unreadDivider && (
-                <div
-                  data-unread-divider
-                  className="my-3 flex items-center gap-3 px-2"
-                  role="separator"
-                >
-                  <span className="h-px flex-1 bg-danger/40" />
-                  <span className="text-[11px] font-semibold text-danger">
-                    {t('chat.unreadDivider')}
-                  </span>
-                  <span className="h-px flex-1 bg-danger/40" />
-                </div>
-              )}
-              <MessageItem
-                message={message}
-                conversationId={conversation.id}
-                showHeader={showHeader}
-                canEdit={mine && message.type === 'TEXT' && stillChangeable(message)}
-                canDelete={(mine && stillChangeable(message)) || canModerate}
-                readers={message.id === lastOwn?.id ? readers : undefined}
-                readerFaces={conversation.type !== 'DIRECT'}
-              />
-            </Fragment>
-          );
-        })}
+            </div>
+          ) : (
+            <p className="py-6 text-center text-xs text-muted">{t('chat.beginning')}</p>
+          )}
 
-        {pending.map((item, index) => (
-          <PendingItem
-            key={item.clientId}
-            pending={item}
-            senderName={meName}
-            senderAvatar={meAvatar}
-            showHeader={index === 0 && last?.sender?.id !== meId}
-            onRetry={() => onRetry(item)}
-            onDiscard={() => onDiscard(item)}
-          />
-        ))}
+          {messages.map((message, index) => {
+            const previous = messages[index - 1];
+            const newDay = !previous || dayOf(previous.created_at) !== dayOf(message.created_at);
+            const unreadDivider = firstUnread?.id === message.id;
+            const showHeader =
+              newDay ||
+              unreadDivider ||
+              !previous ||
+              previous.deleted !== message.deleted ||
+              previous.sender?.id !== message.sender?.id ||
+              new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >
+                GROUP_WINDOW_MS;
+            const mine = message.sender?.id === meId;
+            return (
+              <Fragment key={message.id}>
+                {newDay && (
+                  <div className="my-4 flex items-center gap-3 px-2" role="separator">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] font-medium text-muted">
+                      {dayLabel(message.created_at)}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+                {unreadDivider && (
+                  <div
+                    data-unread-divider
+                    className="my-3 flex items-center gap-3 px-2"
+                    role="separator"
+                  >
+                    <span className="h-px flex-1 bg-danger/40" />
+                    <span className="text-[11px] font-semibold text-danger">
+                      {t('chat.unreadDivider')}
+                    </span>
+                    <span className="h-px flex-1 bg-danger/40" />
+                  </div>
+                )}
+                <MessageItem
+                  message={message}
+                  conversationId={conversation.id}
+                  showHeader={showHeader}
+                  canEdit={mine && message.type === 'TEXT' && stillChangeable(message)}
+                  canDelete={(mine && stillChangeable(message)) || canModerate}
+                  readers={message.id === lastOwn?.id ? readers : undefined}
+                  readerFaces={conversation.type !== 'DIRECT'}
+                />
+              </Fragment>
+            );
+          })}
+
+          {pending.map((item, index) => (
+            <PendingItem
+              key={item.clientId}
+              pending={item}
+              senderName={meName}
+              senderAvatar={meAvatar}
+              showHeader={index === 0 && last?.sender?.id !== meId}
+              onRetry={() => onRetry(item)}
+              onDiscard={() => onDiscard(item)}
+            />
+          ))}
+        </div>
       </div>
 
       {unseen > 0 && !atBottom && (
