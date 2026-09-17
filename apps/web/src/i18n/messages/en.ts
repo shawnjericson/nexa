@@ -37,6 +37,8 @@ export const en: Messages = {
       MESSAGE_NOT_FOUND: 'This message no longer exists.',
       INVALID_CURRENT_PASSWORD: 'The current password is incorrect.',
       NO_ORGANIZATION: "You're not in an organization yet.",
+      GUEST_NOT_ALLOWED: "The demo can't do this. Create your own account to use everything.",
+      DEMO_UNAVAILABLE: 'The demo is switched off for now.',
       ORGANIZATION_SLUG_TAKEN: 'This organization address is already taken.',
       MEMBER_NOT_FOUND: 'This person is no longer in the organization.',
       ROLE_ASSIGNMENT_FORBIDDEN: "You can't assign this role.",
@@ -111,6 +113,62 @@ export const en: Messages = {
     current: 'Current',
     switch: 'Switch',
     joinedOn: 'joined {date}',
+  },
+  demo: {
+    banner: "You're trying NEXA in a sample company. Its data is reset from time to time.",
+    createAccount: 'Create your own account',
+    leave: 'Leave the demo',
+  },
+  landing: {
+    signIn: 'Sign in',
+    signUp: 'Create account',
+    eyebrow: 'A workplace platform',
+    title: "Your company's conversations, announcements and people, in one place.",
+    subtitle:
+      'NEXA brings real-time chat, a company feed, the directory and departments together in a space of its own for every organization.',
+    tryDemo: 'Try it now',
+    tryDemoHint: 'No sign-up. You go straight into a sample company that is already busy.',
+    demoBusy: 'A lot of people are trying the demo right now. Please try again in a few minutes.',
+    demoUnavailable: 'The demo is switched off for now. You can still create an account.',
+    featuresTitle: "What's inside",
+    featureChat: 'Real-time chat',
+    featureChatText:
+      'Direct messages, groups and channels. Typing, read receipts, files, 15 minutes to edit.',
+    featureFeed: 'A company feed',
+    featureFeedText: 'Posts, official announcements, comments and reactions.',
+    featurePeople: 'Directory and departments',
+    featurePeopleText: 'Who does what, which team they are on, and whether they are online.',
+    featureSearch: 'Search everything',
+    featureSearchText: 'People, posts, channels and messages, with or without Vietnamese accents.',
+    featureAdmin: 'Administration with roles',
+    featureAdminText: 'Roles, invitations, departments and an audit log.',
+    featureNotifications: 'Considerate notifications',
+    featureNotificationsText:
+      'A thousand likes are still one notification. Reading a message clears its notification.',
+    engineeringTitle: 'Under the hood',
+    engineeringSubtitle:
+      'The engineering decisions that matter most. Each one is written up as an ADR and kept honest by tests.',
+    engTenancy: 'Every organization is sealed off',
+    engTenancyText:
+      'Every query is scoped to its organization, composite foreign keys enforce it down in the database, and tests assert that nothing reaches another organization.',
+    engMessages: 'Messages are never lost or doubled',
+    engMessagesText:
+      'A gap-free sequence assigned by the server, retries that never create a copy, and a reconnect that catches up exactly where it stopped.',
+    engSessions: 'Sessions that resist theft',
+    engSessionsText:
+      'Refresh tokens rotate on every use; replaying an old one revokes the whole session. Tokens live only in an httpOnly cookie.',
+    engOauth: 'Google sign-in without a back door',
+    engOauthText:
+      'Accounts are never merged by e-mail, because sign-up does not verify e-mails: that closes account pre-hijacking.',
+    engSearch: 'Search that reads Vietnamese',
+    engSearchText:
+      'PostgreSQL full-text search over generated columns: new content is findable at once, and typing without accents still finds it.',
+    engDelivery: 'Push, and it is live',
+    engDeliveryText:
+      'CI runs the whole test suite against a real PostgreSQL and deploys only when it is green. The deploy key can run one script and cannot open a shell.',
+    stackTitle: 'Built with',
+    sourceCode: 'View the source',
+    footer: 'NEXA · Work. Connect. Grow.',
   },
   auth: {
     signInTitle: 'Sign in to NEXA',
@@ -535,14 +593,20 @@ export const en: Messages = {
       'Invitations last 7 days, work once and are tied to the invited email address.',
     invite: 'Invite people',
     inviteTitle: 'Invite a new member',
-    inviteDescription: "You'll get an invitation link to send them.",
+    inviteDescription:
+      "NEXA doesn't send e-mail. You get a link to send them yourself - by chat, e-mail or however you like.",
     email: 'Email',
     emailPlaceholder: 'name@company.com',
     invalidEmail: "This email address doesn't look right.",
     role: 'Role',
     sendInvite: 'Create invitation',
     inviteCreated: 'Invitation created',
-    inviteCreatedDescription: 'Send this link to {email}. It expires on {date}.',
+    inviteCreatedDescription:
+      'Copy the link and send it to {email} yourself. It expires on {date}.',
+    inviteStep1: 'They open this link.',
+    inviteStep2:
+      'They sign in or create an account with exactly {email}. Any other address will not get the invitation.',
+    inviteStep3: 'They choose "Accept invitation" and are in.',
     inviteLink: 'Invitation link',
     copyLink: 'Copy',
     linkCopied: 'Invitation link copied.',

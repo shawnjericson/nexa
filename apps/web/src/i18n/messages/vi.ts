@@ -39,6 +39,9 @@ export const vi = {
       MESSAGE_NOT_FOUND: 'Tin nhắn không còn tồn tại.',
       INVALID_CURRENT_PASSWORD: 'Mật khẩu hiện tại không đúng.',
       NO_ORGANIZATION: 'Bạn chưa thuộc tổ chức nào.',
+      GUEST_NOT_ALLOWED:
+        'Bản xem thử không làm được việc này. Tạo tài khoản của bạn để dùng đầy đủ.',
+      DEMO_UNAVAILABLE: 'Bản xem thử đang tạm tắt.',
       ORGANIZATION_SLUG_TAKEN: 'Đường dẫn tổ chức này đã có người dùng.',
       MEMBER_NOT_FOUND: 'Người này không còn trong tổ chức.',
       ROLE_ASSIGNMENT_FORBIDDEN: 'Bạn không thể gán vai trò này.',
@@ -114,6 +117,61 @@ export const vi = {
     current: 'Đang dùng',
     switch: 'Chuyển sang',
     joinedOn: 'tham gia {date}',
+  },
+  demo: {
+    banner: 'Bạn đang xem thử NEXA trong một công ty mẫu. Dữ liệu được làm mới định kỳ.',
+    createAccount: 'Tạo tài khoản của bạn',
+    leave: 'Thoát bản xem thử',
+  },
+  landing: {
+    signIn: 'Đăng nhập',
+    signUp: 'Tạo tài khoản',
+    eyebrow: 'Nền tảng làm việc nội bộ',
+    title: 'Trò chuyện, thông báo và con người của công ty, ở cùng một chỗ.',
+    subtitle:
+      'NEXA gom chat theo thời gian thực, bảng tin công ty, danh bạ và phòng ban vào một không gian riêng cho từng tổ chức.',
+    tryDemo: 'Xem thử ngay',
+    tryDemoHint: 'Không cần đăng ký. Bạn vào thẳng một công ty mẫu đang hoạt động.',
+    demoBusy: 'Đang có nhiều người xem thử cùng lúc. Bạn thử lại sau ít phút nhé.',
+    demoUnavailable: 'Bản xem thử đang tạm tắt. Bạn vẫn có thể tạo tài khoản.',
+    featuresTitle: 'Có gì bên trong',
+    featureChat: 'Trò chuyện theo thời gian thực',
+    featureChatText: 'Tin nhắn riêng, nhóm và kênh. Đang gõ, đã xem, gửi tệp, sửa trong 15 phút.',
+    featureFeed: 'Bảng tin công ty',
+    featureFeedText: 'Bài viết, thông báo chính thức, bình luận và cảm xúc.',
+    featurePeople: 'Danh bạ và phòng ban',
+    featurePeopleText: 'Ai làm gì, thuộc phòng nào, đang online hay không.',
+    featureSearch: 'Tìm mọi thứ',
+    featureSearchText: 'Người, bài viết, kênh và tin nhắn, gõ có dấu hay không dấu đều được.',
+    featureAdmin: 'Quản trị có phân quyền',
+    featureAdminText: 'Vai trò, lời mời, phòng ban và nhật ký kiểm toán.',
+    featureNotifications: 'Thông báo biết điều',
+    featureNotificationsText:
+      'Một nghìn lượt thích vẫn chỉ là một thông báo. Đọc tin nhắn là thông báo tự tắt.',
+    engineeringTitle: 'Dưới lớp vỏ',
+    engineeringSubtitle:
+      'Những quyết định kỹ thuật đáng kể nhất. Mỗi cái đều được ghi lại thành ADR và có test canh giữ.',
+    engTenancy: 'Mỗi tổ chức là một vùng kín',
+    engTenancyText:
+      'Mọi truy vấn lọc theo tổ chức, khoá ngoại tổng hợp ép ràng buộc xuống tận database, và test khẳng định dữ liệu không bao giờ lọt sang tổ chức khác.',
+    engMessages: 'Tin nhắn không mất, không trùng',
+    engMessagesText:
+      'Số thứ tự liên tục do máy chủ cấp, gửi lại không sinh bản sao, mất kết nối thì bắt kịp đúng chỗ đã dừng.',
+    engSessions: 'Phiên đăng nhập chống đánh cắp',
+    engSessionsText:
+      'Refresh token xoay vòng mỗi lần dùng; dùng lại một token cũ là thu hồi cả phiên. Token chỉ nằm trong cookie httpOnly.',
+    engOauth: 'Đăng nhập Google không mở cửa hậu',
+    engOauthText:
+      'Không bao giờ tự gộp tài khoản theo email, vì email lúc đăng ký chưa được xác minh: chặn kiểu chiếm tài khoản từ trước.',
+    engSearch: 'Tìm kiếm tiếng Việt',
+    engSearchText:
+      'Full-text search của PostgreSQL trên cột sinh sẵn: nội dung mới tìm được ngay, gõ không dấu vẫn ra.',
+    engDelivery: 'Đẩy code là tự lên máy chủ',
+    engDeliveryText:
+      'CI chạy toàn bộ test trên PostgreSQL thật, xanh mới deploy. Khoá deploy chỉ chạy được đúng một script, không mở được shell.',
+    stackTitle: 'Công nghệ',
+    sourceCode: 'Xem mã nguồn',
+    footer: 'NEXA · Work. Connect. Grow.',
   },
   auth: {
     signInTitle: 'Đăng nhập vào NEXA',
@@ -538,14 +596,20 @@ export const vi = {
       'Lời mời có hiệu lực 7 ngày, chỉ dùng được một lần và gắn với email được mời.',
     invite: 'Mời thành viên',
     inviteTitle: 'Mời thành viên mới',
-    inviteDescription: 'Bạn sẽ nhận một liên kết mời để gửi cho người đó.',
+    inviteDescription:
+      'NEXA không tự gửi email. Bạn nhận một liên kết để tự gửi cho người đó, qua Zalo, email hay bất cứ đâu.',
     email: 'Email',
     emailPlaceholder: 'ten@congty.vn',
     invalidEmail: 'Email này chưa đúng định dạng.',
     role: 'Vai trò',
     sendInvite: 'Tạo lời mời',
     inviteCreated: 'Đã tạo lời mời',
-    inviteCreatedDescription: 'Gửi liên kết này cho {email}. Lời mời hết hạn vào {date}.',
+    inviteCreatedDescription:
+      'Sao chép liên kết và tự gửi cho {email}. Lời mời hết hạn vào {date}.',
+    inviteStep1: 'Người được mời mở liên kết này.',
+    inviteStep2:
+      'Họ đăng nhập hoặc tạo tài khoản bằng đúng email {email}. Email khác sẽ không nhận được lời mời.',
+    inviteStep3: 'Bấm "Chấp nhận lời mời" là vào thẳng tổ chức.',
     inviteLink: 'Liên kết mời',
     copyLink: 'Sao chép',
     linkCopied: 'Đã sao chép liên kết mời.',

@@ -2,14 +2,17 @@
 
 import { unwrap } from '@nexa/api-client';
 import { useMutation } from '@tanstack/react-query';
-import { Building2, MailOpen } from 'lucide-react';
+import { Building2, LogOut, MailOpen } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { Logo } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/input';
+import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { api } from '@/lib/api/client';
+import { signOut } from '@/lib/auth/session';
 import { describeError } from '@/lib/api/errors';
 
 /** An invitation link pasted whole, or just the token out of it. */
@@ -59,6 +62,7 @@ export function Onboarding({ onJoined }: { onJoined(organizationId: string): voi
   const [invited] = useState(() => params.get('token') ?? '');
   const [name, setName] = useState('');
   const [pasted, setPasted] = useState('');
+  const { data: me } = useMe();
 
   useEffect(() => {
     if (params.has('token')) router.replace('/home');
@@ -90,16 +94,45 @@ export function Onboarding({ onJoined }: { onJoined(organizationId: string): voi
 
   const busy = create.isPending || accept.isPending;
 
+  // Never a dead end: whichever screen this is, you can see which account you are on and leave.
+  const header = (
+    <header className="flex items-center justify-between gap-3 px-5 py-5 md:px-8">
+      <Logo />
+      <div className="flex items-center gap-3 text-sm text-muted">
+        {me && <span className="hidden truncate sm:inline">{me.email}</span>}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            await signOut();
+            // A full load, so the layout's redirect to sign-in doesn't overtake this one.
+            window.location.replace('/');
+          }}
+        >
+          <LogOut aria-hidden />
+          {t('auth.signOut')}
+        </Button>
+      </div>
+    </header>
+  );
+
   // Arrived from an invitation link: there is one obvious thing to do, so only offer that.
   if (invited) {
     return (
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
-        <MailOpen className="size-8 text-accent" aria-hidden />
-        <h1 className="text-title font-semibold tracking-tight">{t('invite.title')}</h1>
-        <p className="text-sm text-muted">{t('invite.description')}</p>
-        <Button className="mt-3" loading={accept.isPending} onClick={() => accept.mutate(invited)}>
-          {t('invite.accept')}
-        </Button>
+      <div className="flex min-h-dvh flex-col">
+        {header}
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-3 px-6 pb-16 text-center">
+          <MailOpen className="size-8 text-accent" aria-hidden />
+          <h1 className="text-title font-semibold tracking-tight">{t('invite.title')}</h1>
+          <p className="text-sm text-muted">{t('invite.description')}</p>
+          <Button
+            className="mt-3"
+            loading={accept.isPending}
+            onClick={() => accept.mutate(invited)}
+          >
+            {t('invite.accept')}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -115,60 +148,63 @@ export function Onboarding({ onJoined }: { onJoined(organizationId: string): voi
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 md:px-8">
-      <h1 className="text-title font-semibold tracking-tight">
-        {t('organization.onboarding.title')}
-      </h1>
-      <p className="mt-1 text-sm text-muted">{t('organization.onboarding.subtitle')}</p>
+    <div className="flex min-h-dvh flex-col">
+      {header}
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 pb-16 md:px-8">
+        <h1 className="text-title font-semibold tracking-tight">
+          {t('organization.onboarding.title')}
+        </h1>
+        <p className="mt-1 text-sm text-muted">{t('organization.onboarding.subtitle')}</p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Card
-          icon={Building2}
-          title={t('organization.onboarding.createTitle')}
-          description={t('organization.onboarding.createDescription')}
-        >
-          <form onSubmit={submitName} className="flex flex-col gap-3">
-            <TextField
-              label={t('organization.onboarding.nameLabel')}
-              placeholder={t('organization.onboarding.namePlaceholder')}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={120}
-              autoComplete="organization"
-            />
-            <Button
-              type="submit"
-              loading={create.isPending}
-              disabled={busy || name.trim().length < 2}
-            >
-              {t('organization.onboarding.createAction')}
-            </Button>
-          </form>
-        </Card>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Card
+            icon={Building2}
+            title={t('organization.onboarding.createTitle')}
+            description={t('organization.onboarding.createDescription')}
+          >
+            <form onSubmit={submitName} className="flex flex-col gap-3">
+              <TextField
+                label={t('organization.onboarding.nameLabel')}
+                placeholder={t('organization.onboarding.namePlaceholder')}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={120}
+                autoComplete="organization"
+              />
+              <Button
+                type="submit"
+                loading={create.isPending}
+                disabled={busy || name.trim().length < 2}
+              >
+                {t('organization.onboarding.createAction')}
+              </Button>
+            </form>
+          </Card>
 
-        <Card
-          icon={MailOpen}
-          title={t('organization.onboarding.inviteTitle')}
-          description={t('organization.onboarding.inviteDescription')}
-        >
-          <form onSubmit={submitToken} className="flex flex-col gap-3">
-            <TextField
-              label={t('organization.onboarding.tokenLabel')}
-              placeholder={t('organization.onboarding.tokenPlaceholder')}
-              value={pasted}
-              onChange={(event) => setPasted(event.target.value)}
-              autoComplete="off"
-            />
-            <Button
-              type="submit"
-              variant="secondary"
-              loading={accept.isPending}
-              disabled={busy || tokenOf(pasted).length === 0}
-            >
-              {t('invite.accept')}
-            </Button>
-          </form>
-        </Card>
+          <Card
+            icon={MailOpen}
+            title={t('organization.onboarding.inviteTitle')}
+            description={t('organization.onboarding.inviteDescription')}
+          >
+            <form onSubmit={submitToken} className="flex flex-col gap-3">
+              <TextField
+                label={t('organization.onboarding.tokenLabel')}
+                placeholder={t('organization.onboarding.tokenPlaceholder')}
+                value={pasted}
+                onChange={(event) => setPasted(event.target.value)}
+                autoComplete="off"
+              />
+              <Button
+                type="submit"
+                variant="secondary"
+                loading={accept.isPending}
+                disabled={busy || tokenOf(pasted).length === 0}
+              >
+                {t('invite.accept')}
+              </Button>
+            </form>
+          </Card>
+        </div>
       </div>
     </div>
   );

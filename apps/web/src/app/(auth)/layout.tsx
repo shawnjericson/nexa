@@ -1,4 +1,5 @@
 import { MessagesSquare, Users, Zap } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AuthArtwork } from '@/components/brand/auth-artwork';
 import { Logo } from '@/components/brand/logo';
@@ -22,7 +23,9 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       <aside className="relative hidden overflow-hidden lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:p-10 xl:p-14">
         <AuthArtwork />
         <div className="relative">
-          <Logo className="text-white" />
+          <Link href="/" aria-label="NEXA" className="inline-flex rounded-md">
+            <Logo className="text-white" />
+          </Link>
         </div>
 
         <div className="relative max-w-md">
@@ -53,7 +56,9 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
 
       <main className="flex flex-1 flex-col">
         <header className="flex items-center justify-between px-5 py-5 lg:justify-end lg:px-10">
-          <Logo className="lg:hidden" />
+          <Link href="/" aria-label="NEXA" className="inline-flex rounded-md lg:hidden">
+            <Logo />
+          </Link>
           <LanguageSwitch />
         </header>
         <div className="flex flex-1 items-center justify-center px-5 pb-10">

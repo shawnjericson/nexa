@@ -190,12 +190,14 @@ export async function startSession(response: Response): Promise<NextResponse> {
 }
 
 /** Starts the session and sends the browser on, for flows that come back from another site. */
+/** 307 keeps the method, which suits a GET callback; a form POST needs 303 to land on a GET. */
 export async function startSessionAndRedirect(
   response: Response,
   to: string,
+  status: 303 | 307 = 307,
 ): Promise<NextResponse> {
   const { data } = (await response.json()) as { data: Tokens };
-  return applySession(NextResponse.redirect(to), data);
+  return applySession(NextResponse.redirect(to, status), data);
 }
 
 export function endSession(result: NextResponse): NextResponse {

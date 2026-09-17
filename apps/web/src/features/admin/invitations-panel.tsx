@@ -182,6 +182,13 @@ function InviteLinkDialog({
             {t('admin.copyLink')}
           </Button>
         </div>
+        {invitation && (
+          <ol className="mt-4 flex list-decimal flex-col gap-1.5 rounded-lg bg-surface-subtle py-3 pr-3 pl-8 text-[13px] text-fg">
+            <li>{t('admin.inviteStep1')}</li>
+            <li>{t('admin.inviteStep2', { email: invitation.email })}</li>
+            <li>{t('admin.inviteStep3')}</li>
+          </ol>
+        )}
         <p className="mt-3 text-xs text-muted">{t('admin.inviteOnce')}</p>
       </DialogContent>
     </Dialog>
