@@ -1,11 +1,55 @@
 # NEXA Workplace
 
+[![CI](https://github.com/shawnjericson/nexa/actions/workflows/ci.yml/badge.svg)](https://github.com/shawnjericson/nexa/actions/workflows/ci.yml)
+
+**[Live demo](https://nexa.anhdlttech.io.vn)** - one click, no sign-up ·
+**[API docs](https://api.nexa.anhdlttech.io.vn/docs/)** ·
+[Architecture decisions](docs/adr/README.md)
+
 Private social + communication platform for organizations: company feed, chat, organization &
 identity, notifications. It started as a Node.js exam (Social Media API) and grows into the NEXA v1
 platform.
 
-- Architecture spec, risk register and design system: [`docs/specs/`](docs/specs)
-- Architecture decisions: [`docs/adr/`](docs/adr/README.md)
+![NEXA home: announcements, recent posts and the conversations waiting for you](docs/screenshots/home.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/chat-dark.png" alt="A channel in dark mode"></td>
+    <td width="50%"><img src="docs/screenshots/feed.png" alt="The company feed"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/people.png" alt="The directory, by department"></td>
+    <td width="50%" align="center">
+      <img src="docs/screenshots/mobile-chat.png" width="220" alt="Chat on a phone">
+    </td>
+  </tr>
+</table>
+
+The interface is Vietnamese first, with English one click away (a first visit follows the
+browser's language). The demo company's content is in Vietnamese.
+
+## Highlights
+
+- **Modular monolith** - eight modules (identity, organization, social, communication, file,
+  search, notification, administration), each layered routes → controllers → services →
+  repositories, reacting to each other only through domain events.
+- **Multi-tenant by construction** - every row carries its organization, and composite foreign keys
+  keep comments, reactions and messages inside the organization they belong to
+  ([ADR-012](docs/adr/012-per-organization-roles-and-onboarding.md)).
+- **Real-time chat** over Socket.IO with a Redis adapter: server-assigned sequence numbers,
+  idempotent sends, read receipts and presence
+  ([ADR-015](docs/adr/015-chat-and-realtime.md)).
+- **Sessions** - 15-minute JWTs and rotating refresh tokens with reuse detection, bcrypt, Google
+  sign-in, rate limits on everything that can be abused.
+- **Search** - PostgreSQL full-text search that ignores Vietnamese accents, with each module
+  enforcing its own visibility ([ADR-018](docs/adr/018-search.md)).
+- **Files** - presigned uploads straight to Cloudflare R2, content checks and cleanup of
+  abandoned uploads ([ADR-017](docs/adr/017-files-and-object-storage.md)).
+- **260+ integration tests** against a real PostgreSQL; every green push to `master` deploys
+  itself ([Deploying](#deploying)).
+
+Documents: architecture specification, risk register and design system in
+[`docs/specs/`](docs/specs) (PDF), and the decisions made since in [`docs/adr/`](docs/adr/README.md).
 
 ## Stack
 
@@ -70,10 +114,32 @@ Modules never reach into each other's repositories; cross-module reactions go th
 (e.g. `identity.user_registered` → the Organization module adds the user to the default
 organization).
 
-## Getting started
+## Run it on your machine
 
-Requirements: Node.js 22+, pnpm 10 (`corepack enable`), and a whitelisted IP for the PostgreSQL
-server (see ADR-011).
+Requirements: Node.js 22+, pnpm 10 (`corepack enable`) and Docker. Only PostgreSQL is needed;
+Redis, MongoDB and object storage are optional, and the API runs without them.
+
+```bash
+docker compose up -d --wait                  # PostgreSQL 18 on localhost:5432
+pnpm install
+cp apps/api/.env.local.example apps/api/.env
+pnpm --filter @nexa/api db:generate          # generate the Prisma client
+pnpm --filter @nexa/api db:deploy            # create the tables
+pnpm --filter @nexa/api seed:demo -- --org nexa --create --name NEXA --yes   # sample company
+
+pnpm dev                                     # API on http://localhost:4000 (docs: /docs)
+pnpm dev:web                                 # web app on http://localhost:3000
+```
+
+Open http://localhost:3000 and choose **Try it now**, or register: anyone who registers joins the
+sample company. `pnpm test` runs the integration tests against `nexa_test` in the same container.
+CI goes through these exact steps on every push (the _Run it on your machine_ job), so they keep
+working.
+
+## Development against the shared databases
+
+The maintainers' setup: the PostgreSQL, Redis and MongoDB instances on the VPS, reachable only
+from allowlisted addresses (see ADR-011).
 
 ```bash
 pnpm install
@@ -435,8 +501,21 @@ unavailable.
 ## Deploying
 
 Both apps run under PM2 behind Nginx: `nexa-api` on port 4100 and `nexa-web` on port 3100, each
-with its own subdomain and certificate. Nginx proxies `/socket.io/` with the upgrade headers, and
-the API runs with `TRUST_PROXY=1` so rate limits and logs see the real client address.
+with its own subdomain and certificate. Nginx proxies `/socket.io/` with the upgrade headers.
+
+Rate limits are per client address, so the API has to see the real one. Every `location` that
+proxies to either app sets
+
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+and the API runs with `TRUST_PROXY=1`, which takes the address Nginx appended. The order matters:
+with `TRUST_PROXY=1` but no such header from Nginx, the API would believe whatever
+`X-Forwarded-For` a client sends, and anyone could dodge the limits. With neither (how it first
+ran), every visitor looks like `127.0.0.1`, so the whole site shares one allowance - ten demo
+starts an hour, for everyone. The web app's session routes pass the header on to the API.
 
 Pushing to `master` deploys. The workflow in `.github/workflows/ci.yml` first runs the checks
 (formatting, ESLint, TypeScript, the whole test suite against a throwaway PostgreSQL, and both
@@ -486,3 +565,28 @@ redirects point at something the browser can reach.
 
 After deploying, `GET /ready` reports the database and Redis, and `pm2 logs nexa-api` shows startup
 errors as JSON.
+
+### Backups and logs
+
+Two jobs in the deploy account's crontab (the server runs on UTC):
+
+```cron
+# 02:15 in Vietnam: dump nexa_prod, keep 14 days
+15 19 * * * cd $HOME/nexa.anhdlttech.io.vn && node apps/api/scripts/backup-db.mjs >> $HOME/backups/nexa-backup.log 2>&1
+# then compress and empty the PM2 logs of nexa-api and nexa-web, keep 14 days
+30 19 * * * $HOME/nexa.anhdlttech.io.vn/scripts/rotate-logs.sh >> $HOME/backups/nexa-logs.log 2>&1
+```
+
+`backup-db.mjs` writes a `pg_dump` custom-format file to `~/backups/nexa`, checks that it reads
+back, and deletes dumps older than `BACKUP_KEEP_DAYS`. A copy on the same disk does not survive
+losing the server: set `BACKUP_S3_PREFIX` (e.g. `backups/postgres`) in the API's `.env` and each
+dump is also uploaded to the S3/R2 bucket the API already uses, where a lifecycle rule can expire
+old ones. To restore into an empty database:
+
+```bash
+pg_restore --no-owner --dbname=nexa_restore ~/backups/nexa/nexa_prod-<timestamp>.dump
+```
+
+The API logs one JSON line per request at `LOG_LEVEL=info`; `debug` is for chasing a problem, not
+for production. `rotate-logs.sh` only touches NEXA's own logs, because PM2 on this server also runs
+other applications.
