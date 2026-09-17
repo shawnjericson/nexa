@@ -51,6 +51,19 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'post',
+  path: '/api/v1/auth/demo',
+  tags: ['Auth'],
+  summary: 'Try the demo as a guest',
+  description:
+    'Creates a guest account with no password, seats it in DEMO_ORG_SLUG as a member and signs it in. Guests may not create organizations or upload files. Off (404) unless DEMO_ORG_SLUG is set; limited to 10 guests an hour per address.',
+  responses: {
+    201: { description: 'Tokens and profile', content: jsonContent(successResponse(LoginResult)) },
+    ...errorResponses(404, 429),
+  },
+});
+
+registry.registerPath({
+  method: 'post',
   path: '/api/v1/auth/oauth/google',
   tags: ['Auth'],
   summary: 'Sign in with a Google ID token',
