@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
@@ -227,6 +228,30 @@ describe('notification rules', () => {
     expect(await notificationsOf(alice.accessToken)).toEqual([]);
   });
 
+  it('leaves the bell alone for channel messages, which show as unread instead', async () => {
+    const { alice, bob } = await createTeam(app);
+    const channel = (
+      await request(app)
+        .post('/api/v1/conversations')
+        .set(bearer(alice.accessToken))
+        .send({ type: 'CHANNEL', name: 'Everyone' })
+    ).body.data as { id: string };
+    await request(app)
+      .post(`/api/v1/conversations/${channel.id}/members`)
+      .set(bearer(bob.accessToken))
+      .send({ user_ids: [bob.user.id] });
+
+    await sendMessage(alice.accessToken, channel.id, 'Hello everyone');
+
+    expect(await notificationsOf(bob.accessToken)).toEqual([]);
+    const conversations = await request(app)
+      .get('/api/v1/conversations')
+      .set(bearer(bob.accessToken));
+    expect(conversations.body.data).toEqual([
+      expect.objectContaining({ id: channel.id, unread_count: 1 }),
+    ]);
+  });
+
   it('clears the conversation notification once the messages have been read', async () => {
     const { alice, bob } = await createTeam(app);
     const dm = (
@@ -358,6 +383,48 @@ describe('notification delivery', () => {
     entityId: '0190f5a4-0000-7000-8000-000000000001',
     groupKey: 'post.reacted:0190f5a4-0000-7000-8000-000000000001',
     metadata: { reaction: 'LIKE' },
+  });
+
+  it('delivers to many recipients at once, coalescing per person', async () => {
+    const { owner, alice, bob } = await createTeam(app);
+    const organizationId = await defaultOrganizationId();
+    const repository = new PrismaNotificationRepository(prisma);
+    const conversationId = randomUUID();
+    const drafts = (actorId: string) =>
+      [owner, alice, bob].map((member) => ({
+        ...draft(member.user.id, actorId),
+        type: 'message.received' as const,
+        entityType: 'conversation',
+        entityId: conversationId,
+        groupKey: `message.received:${conversationId}`,
+      }));
+
+    await repository.deliver('evt_group_1', organizationId, drafts(owner.user.id));
+    // Bob reads his before the next message, so the next one starts afresh for him.
+    await prisma.notification.updateMany({
+      where: { recipientId: bob.user.id },
+      data: { readAt: new Date() },
+    });
+    const second = await repository.deliver('evt_group_2', organizationId, drafts(alice.user.id));
+
+    expect(second).toHaveLength(3);
+    const rows = await prisma.notification.findMany({
+      where: { organizationId, entityId: conversationId },
+      orderBy: { createdAt: 'asc' },
+      select: { recipientId: true, count: true, readAt: true, metadata: true },
+    });
+    const of = (userId: string) => rows.filter((row) => row.recipientId === userId);
+    expect(of(owner.user.id)).toEqual([
+      expect.objectContaining({
+        count: 2,
+        readAt: null,
+        metadata: expect.objectContaining({ actor_ids: [alice.user.id, owner.user.id] }),
+      }),
+    ]);
+    expect(of(bob.user.id).map((row) => [row.count, row.readAt === null])).toEqual([
+      [1, false],
+      [1, true],
+    ]);
   });
 
   it('applies a redelivered event only once (12.2)', async () => {
