@@ -45,6 +45,9 @@ browser's language). The demo company's content is in Vietnamese.
   enforcing its own visibility ([ADR-018](docs/adr/018-search.md)).
 - **Files** - presigned uploads straight to Cloudflare R2, content checks and cleanup of
   abandoned uploads ([ADR-017](docs/adr/017-files-and-object-storage.md)).
+- **Load-tested at 20,000 people** with k6 on the production hardware: four bottlenecks found and
+  fixed, sending to a 20,000-member channel went from 30 s to 128 ms
+  ([performance](docs/performance.md)).
 - **260+ integration tests** against a real PostgreSQL; every green push to `master` deploys
   itself ([Deploying](#deploying)).
 

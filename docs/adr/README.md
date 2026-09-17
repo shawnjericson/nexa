@@ -23,3 +23,6 @@ Every significant change to the architecture gets a new ADR here instead of sile
 | [016](016-notifications-and-audit-log.md)            | Notification rules and coalescing, idempotent consumers, audit log with PostgreSQL fallback | Accepted                                                      |
 | [017](017-files-and-object-storage.md)               | Cloudflare R2 via S3, presigned two-step uploads, content checks, attachments and cleanup   | Accepted                                                      |
 | [018](018-search.md)                                 | PostgreSQL full-text search, accent-insensitive, each module enforcing its own visibility   | Accepted                                                      |
+| [019](019-web-frontend-architecture.md)              | Web frontend architecture                                                                   | Accepted                                                      |
+| [020](020-google-sign-in-and-avatars.md)             | Signing in with Google, and uploaded avatars                                                | Accepted                                                      |
+| [021](021-measured-load-and-scale-fixes.md)          | Load-tested at 20,000 people: no per-table or per-audience work in a request                | Accepted                                                      |
