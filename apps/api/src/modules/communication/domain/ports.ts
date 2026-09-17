@@ -128,6 +128,8 @@ export interface PresenceStore {
   /** Removes a connection; returns true when the user has no live connection left. */
   disconnect(organizationId: string, userId: string, connectionId: string): Promise<boolean>;
   onlineUserIds(organizationId: string, userIds: readonly string[]): Promise<Set<string>>;
+  /** How many people in the organization are online, not counting `exceptUserId`. */
+  countOnline(organizationId: string, exceptUserId?: string): Promise<number>;
 }
 
 /** Pushes chat events to connected clients (implemented over Socket.IO). */

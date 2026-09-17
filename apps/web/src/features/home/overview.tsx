@@ -20,7 +20,7 @@ import { conversationTitle, ConversationIcon } from '@/features/chat/conversatio
 import { PostComposer } from '@/features/feed/composer';
 import { useFeed } from '@/features/feed/queries';
 import { useOrganization, useOrgKey } from '@/features/organization/organization-provider';
-import { useMembers, usePresence } from '@/features/people/queries';
+import { useMemberPage, useOnlineCount, usePresence } from '@/features/people/queries';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { api } from '@/lib/api/client';
@@ -195,7 +195,9 @@ export function HomeOverview() {
   const { canAdminister } = useOrganization();
   const orgKey = useOrgKey();
   const feed = useFeed();
-  const members = useMembers();
+  // Only the newest few: the home page never needs the whole organization.
+  const members = useMemberPage({ sort: 'newest', limit: COLLEAGUES + 2 });
+  const online = useOnlineCount();
   const conversations = useQuery({
     queryKey: orgKey('conversations', 'briefing'),
     queryFn: () => unwrap(api.GET('/api/v1/conversations', { params: { query: { limit: 100 } } })),
@@ -215,27 +217,24 @@ export function HomeOverview() {
     )
     .slice(0, CONVERSATIONS);
 
-  const people = (members.data ?? []).filter((member): member is Colleague => member.user !== null);
-  const newest = [...people]
+  const newest = (members.data?.data ?? [])
+    .filter((member): member is Colleague => member.user !== null)
     .filter(
       (member) =>
         member.user.id !== me?.id &&
         !member.user.deactivated &&
         Date.now() - Date.parse(member.joined_at) < NEW_COLLEAGUE_DAYS * 86_400_000,
     )
-    .sort((a, b) => Date.parse(b.joined_at) - Date.parse(a.joined_at))
     .slice(0, COLLEAGUES);
 
-  // Everyone in the directory, so "N online" is the whole organization and not just this page;
-  // usePresence dedupes, sorts and batches, and the directory asks for the same thing.
+  // Presence for the people on this page; "N online" is counted for the whole organization by
+  // the API.
   const watched = [
-    ...people.map((member) => member.user.id),
+    ...newest.map((member) => member.user.id),
     ...threads.flatMap((item) => (item.direct_peer ? [item.direct_peer.id] : [])),
   ];
   const presence = usePresence(watched);
-  const onlineCount = people.filter(
-    (member) => member.user.id !== me?.id && presence.data?.[member.user.id] === 'online',
-  ).length;
+  const onlineCount = online.data?.online_count ?? 0;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-6 md:px-8 md:py-8 lg:flex-row">

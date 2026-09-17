@@ -19,9 +19,32 @@ async function expectMultiDevicePresence(store: PresenceStore, user: string) {
   expect(await store.onlineUserIds(ORG, [user])).toEqual(new Set());
 }
 
+/** "N online": everyone in the organization at once, without asking about each person. */
+async function expectOnlineCount(store: PresenceStore, [a, b, c]: string[]) {
+  await store.connect(ORG, a!, 'a-phone', 60_000);
+  await store.connect(ORG, a!, 'a-laptop', 60_000);
+  await store.connect(ORG, b!, 'b-laptop', 60_000);
+  await store.connect('other-org', c!, 'c-laptop', 60_000);
+
+  expect(await store.countOnline(ORG)).toBe(2);
+  expect(await store.countOnline(ORG, a)).toBe(1);
+  expect(await store.countOnline(ORG, c)).toBe(2);
+
+  await store.disconnect(ORG, a!, 'a-phone');
+  expect(await store.countOnline(ORG)).toBe(2);
+  await store.disconnect(ORG, a!, 'a-laptop');
+  expect(await store.countOnline(ORG)).toBe(1);
+  await store.disconnect(ORG, b!, 'b-laptop');
+  expect(await store.countOnline(ORG)).toBe(0);
+}
+
 describe('memory presence store', () => {
   it('stays online while any connection is alive (9.5)', async () => {
     await expectMultiDevicePresence(new MemoryPresenceStore(), 'u1');
+  });
+
+  it('counts who is online in the organization', async () => {
+    await expectOnlineCount(new MemoryPresenceStore(), ['a', 'b', 'c']);
   });
 
   it('expires connections that stop sending heartbeats (11.1)', async () => {
@@ -48,12 +71,22 @@ describe.skipIf(!redisUrl)('redis presence store (VPS Redis)', () => {
   const store = new RedisPresenceStore(redis, prefix);
 
   afterAll(async () => {
-    await redis.del(`${prefix}${ORG}:u1`, `${prefix}${ORG}:u2`);
+    await redis.del(
+      `${prefix}${ORG}:u1`,
+      `${prefix}${ORG}:u2`,
+      `${prefix}online:${ORG}`,
+      `${prefix}online:other-org`,
+      `${prefix}other-org:u5`,
+    );
     await redis.quit();
   });
 
   it('stays online while any connection is alive (9.5)', async () => {
     await expectMultiDevicePresence(store, 'u1');
+  });
+
+  it('counts who is online in the organization', async () => {
+    await expectOnlineCount(store, ['u3', 'u4', 'u5']);
   });
 
   // Redis ACL matches PSUBSCRIBE patterns literally: `&nexa:*` alone does not allow the pattern

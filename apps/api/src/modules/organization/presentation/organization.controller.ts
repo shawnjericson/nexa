@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from 'express';
 import type { z } from 'zod';
-import { toPagePagination, type PageQueryInput } from '../../../shared/http/pagination';
+import { toPagePagination } from '../../../shared/http/pagination';
 import { created, ok, paginated } from '../../../shared/http/response';
 import { requireAuthContext, toUserReference, type UserDirectory } from '../../identity';
 import type { DepartmentService } from '../application/department.service';
@@ -30,6 +30,7 @@ import type {
   UpdateDepartmentInput,
   UpdateMemberInput,
   UpdateOrganizationInput,
+  MemberListQueryInput,
 } from './schemas';
 
 type Params<T extends z.ZodType> = z.infer<T>;
@@ -52,9 +53,13 @@ export function createOrganizationController(deps: {
     organization: organizationContext(req),
   });
 
-  async function presentMembers(items: Member[]) {
-    const directory = await users.getSummaries(items.map((member) => member.userId));
-    return items.map((member) => toMemberResponse(member, directory));
+  async function presentMembers(actor: OrganizationActor, items: Member[]) {
+    const ids = items.map((member) => member.userId);
+    const [directory, placed] = await Promise.all([
+      users.getSummaries(ids),
+      departments.departmentsOf(actor, ids),
+    ]);
+    return items.map((member) => toMemberResponse(member, directory, placed));
   }
 
   // ─── Organizations ─────────────────────────────────────────────────────
@@ -95,15 +100,24 @@ export function createOrganizationController(deps: {
   // ─── Members ───────────────────────────────────────────────────────────
 
   const listMembers: RequestHandler = async (req, res) => {
-    const page = await memberships.list(actorOf(req), req.query as unknown as PageQueryInput);
-    paginated(res, await presentMembers(page.items), toPagePagination(page));
+    const { department_id: departmentId, ...query } = req.query as unknown as MemberListQueryInput;
+    const page = await memberships.list(actorOf(req), { ...query, departmentId });
+    paginated(res, await presentMembers(actorOf(req), page.items), toPagePagination(page));
+  };
+
+  const getMember: RequestHandler = async (req, res) => {
+    const { userId } = req.params as Params<typeof MemberParams>;
+    const actor = actorOf(req);
+    const [response] = await presentMembers(actor, [await memberships.get(actor, userId)]);
+    ok(res, response);
   };
 
   const updateMember: RequestHandler = async (req, res) => {
     const { userId } = req.params as Params<typeof MemberParams>;
     const body = req.body as UpdateMemberInput;
-    const member = await memberships.update(actorOf(req), userId, body);
-    const [response] = await presentMembers([member]);
+    const actor = actorOf(req);
+    const member = await memberships.update(actor, userId, body);
+    const [response] = await presentMembers(actor, [member]);
     ok(res, response);
   };
 
@@ -192,6 +206,7 @@ export function createOrganizationController(deps: {
     getOrganization,
     updateOrganization,
     listMembers,
+    getMember,
     updateMember,
     removeMember,
     listInvitations,

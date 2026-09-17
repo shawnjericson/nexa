@@ -2,12 +2,11 @@
 
 import { isApiError } from '@nexa/api-client';
 import { History } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useId, useState } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { EmptyState, ErrorState } from '@/components/ui/states';
-import { useMembers } from '@/features/people/queries';
 import { useI18n } from '@/i18n/provider';
 import { RowsSkeleton } from './members-panel';
 import { useAuditLog } from './queries';
@@ -62,16 +61,6 @@ export function AuditPanel() {
   const selectId = useId();
   const [action, setAction] = useState('');
   const log = useAuditLog(action || null);
-  const members = useMembers();
-  const names = useMemo(
-    () =>
-      new Map(
-        (members.data ?? []).flatMap((member) =>
-          member.user ? [[member.user.id, member.user.display_name] as const] : [],
-        ),
-      ),
-    [members.data],
-  );
 
   const unavailable = log.isError && isApiError(log.error) && log.error.status === 503;
   const entries = log.data?.pages.flatMap((page) => page.data) ?? [];
@@ -116,7 +105,7 @@ export function AuditPanel() {
         <ol className="-mx-3 flex flex-col divide-y divide-border">
           {entries.map((entry) => {
             const actor = entry.actor?.display_name ?? t('admin.system');
-            const subject = entry.subject_id ? names.get(entry.subject_id) : undefined;
+            const subject = entry.subject?.display_name;
             return (
               <li key={entry.id} className="flex items-start gap-3 px-3 py-3">
                 <Avatar name={actor} src={entry.actor?.avatar_url} size="sm" />

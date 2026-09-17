@@ -17,6 +17,9 @@ export const AuditEntryResponse = z
     action: z.string().openapi({ example: 'organization.member_updated' }),
     actor: UserReference.nullable(),
     subject_id: z.string().nullable(),
+    subject: UserReference.nullable().openapi({
+      description: 'The person the action was about, when it was about a person',
+    }),
     metadata: z.record(z.string(), z.unknown()),
     occurred_at: z.iso.datetime(),
   })

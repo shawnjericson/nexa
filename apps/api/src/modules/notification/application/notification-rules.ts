@@ -102,6 +102,9 @@ export function registerNotificationRules(
   events.subscribe<MessageCreatedEvent>(MESSAGE_CREATED, async (event) => {
     const { conversation_id, conversation_type, seq, recipient_ids, excerpt, attachment_count } =
       event.metadata;
+    // A channel shows what's new with its unread count, like any chat app; a bell for every
+    // message there would ring for the whole company, and cost a notification per member.
+    if (conversation_type === 'CHANNEL') return;
     await notifications.deliver(
       event,
       recipient_ids.map((recipientId) => ({

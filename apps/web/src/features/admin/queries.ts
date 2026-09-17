@@ -113,6 +113,8 @@ export function useRevokeInvitation() {
 }
 
 function refreshDepartments(queryClient: QueryClient, orgKey: OrgKey) {
+  // Members carry their departments, and the directory filters by them.
+  void queryClient.invalidateQueries({ queryKey: orgKey('members') });
   // Also refreshes every department's member list (their keys start the same way).
   return queryClient.invalidateQueries({ queryKey: orgKey('departments') });
 }

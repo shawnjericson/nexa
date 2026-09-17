@@ -1,5 +1,10 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
-import { mergeActors, type Notification, type NotificationDraft } from '../domain/notification';
+import {
+  MAX_ACTORS,
+  mergeActors,
+  type Notification,
+  type NotificationDraft,
+} from '../domain/notification';
 import type { NotificationCursor, NotificationRepository } from '../domain/ports';
 
 const CONSUMER = 'notification';
@@ -46,6 +51,105 @@ function toCreateInput(organizationId: string, draft: NotificationDraft) {
   };
 }
 
+/** One draft per recipient and group: a statement can't update the same notification twice. */
+function uniqueGroups(drafts: NotificationDraft[]): NotificationDraft[] {
+  const byKey = new Map<string, NotificationDraft>();
+  for (const draft of drafts) {
+    if (draft.groupKey !== null) byKey.set(`${draft.recipientId}|${draft.groupKey}`, draft);
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * Adds each draft to the recipient's unread notification of the same group, or starts one - for
+ * every recipient in two statements, however many there are. It used to be three queries per
+ * recipient, inside the request that sent the message: seconds for a channel of a thousand.
+ *
+ * Coalescing is serialized per recipient and group (12.3) with advisory locks, all taken in one
+ * statement and in a fixed order, so two events for overlapping people can't deadlock.
+ */
+async function coalesce(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  drafts: NotificationDraft[],
+): Promise<NotificationRow[]> {
+  const keys = drafts.map((draft) => `${draft.recipientId}|${draft.groupKey}`);
+  // executeRaw: the locks return void, which a query result could not carry.
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(h)
+    FROM (SELECT hashtext(k) AS h FROM unnest(${keys}::text[]) AS k ORDER BY h) AS locks`;
+
+  const now = new Date();
+  const rows = JSON.stringify(
+    drafts.map((draft) => ({
+      recipient_id: draft.recipientId,
+      actor_id: draft.actorId,
+      type: draft.type,
+      entity_type: draft.entityType,
+      entity_id: draft.entityId,
+      group_key: draft.groupKey,
+      metadata: draft.metadata,
+    })),
+  );
+  return tx.$queryRaw<NotificationRow[]>`
+    WITH d AS (
+      SELECT * FROM jsonb_to_recordset(${rows}::jsonb) AS d(
+        recipient_id uuid, actor_id uuid, type text, entity_type text, entity_id uuid,
+        group_key text, metadata jsonb)
+    ),
+    updated AS (
+      UPDATE notifications n
+         SET count = n.count + 1,
+             actor_id = d.actor_id,
+             updated_at = ${now},
+             -- mergeActors: the newest actor first, then the earlier ones, at most MAX_ACTORS.
+             metadata = n.metadata || d.metadata || jsonb_build_object('actor_ids', (
+               SELECT coalesce(jsonb_agg(a ORDER BY ord), '[]'::jsonb)
+               FROM (
+                 SELECT a, ord FROM (
+                   SELECT d.actor_id::text AS a, 0::bigint AS ord WHERE d.actor_id IS NOT NULL
+                   UNION ALL
+                   SELECT e.a, e.ord
+                   FROM jsonb_array_elements_text(
+                          CASE WHEN jsonb_typeof(n.metadata -> 'actor_ids') = 'array'
+                               THEN n.metadata -> 'actor_ids' ELSE '[]'::jsonb END
+                        ) WITH ORDINALITY AS e(a, ord)
+                   WHERE d.actor_id IS NULL OR e.a <> d.actor_id::text
+                 ) AS merged
+                 ORDER BY ord
+                 LIMIT ${MAX_ACTORS}
+               ) AS kept))
+        FROM d
+       WHERE n.organization_id = ${organizationId}::uuid
+         AND n.recipient_id = d.recipient_id
+         AND n.group_key = d.group_key
+         AND n.read_at IS NULL
+      RETURNING n.*
+    ),
+    inserted AS (
+      INSERT INTO notifications (organization_id, recipient_id, actor_id, type, entity_type,
+                                 entity_id, group_key, metadata, created_at, updated_at)
+      SELECT ${organizationId}::uuid, d.recipient_id, d.actor_id, d.type, d.entity_type,
+             d.entity_id, d.group_key,
+             d.metadata || jsonb_build_object('actor_ids',
+               CASE WHEN d.actor_id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(d.actor_id) END),
+             ${now}, ${now}
+      FROM d
+      WHERE NOT EXISTS (
+        SELECT 1 FROM updated u WHERE u.recipient_id = d.recipient_id AND u.group_key = d.group_key)
+      RETURNING *
+    )
+    SELECT id, organization_id AS "organizationId", recipient_id AS "recipientId",
+           actor_id AS "actorId", type, entity_type AS "entityType", entity_id AS "entityId",
+           group_key AS "groupKey", count, metadata, read_at AS "readAt",
+           created_at AS "createdAt", updated_at AS "updatedAt"
+    FROM updated
+    UNION ALL
+    SELECT id, organization_id, recipient_id, actor_id, type, entity_type, entity_id, group_key,
+           count, metadata, read_at, created_at, updated_at
+    FROM inserted`;
+}
+
 export class PrismaNotificationRepository implements NotificationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -75,48 +179,8 @@ export class PrismaNotificationRepository implements NotificationRepository {
           );
         }
 
-        for (const draft of drafts.filter((d) => d.groupKey !== null)) {
-          // Serialize coalescing per recipient and group, so concurrent events can't split one
-          // notification into two (12.3).
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${draft.recipientId}|${draft.groupKey}`}))`;
-          const existing = await tx.notification.findFirst({
-            where: {
-              organizationId,
-              recipientId: draft.recipientId,
-              groupKey: draft.groupKey,
-              readAt: null,
-            },
-            select: NOTIFICATION_SELECT,
-          });
-
-          if (!existing) {
-            stored.push(
-              await tx.notification.create({
-                data: toCreateInput(organizationId, draft),
-                select: NOTIFICATION_SELECT,
-              }),
-            );
-            continue;
-          }
-
-          const previous = isRecord(existing.metadata) ? existing.metadata : {};
-          stored.push(
-            await tx.notification.update({
-              where: { id: existing.id },
-              data: {
-                count: { increment: 1 },
-                actorId: draft.actorId,
-                updatedAt: new Date(),
-                metadata: {
-                  ...previous,
-                  ...draft.metadata,
-                  actor_ids: mergeActors(previous.actor_ids, draft.actorId),
-                } as Prisma.InputJsonObject,
-              },
-              select: NOTIFICATION_SELECT,
-            }),
-          );
-        }
+        const grouped = uniqueGroups(drafts);
+        if (grouped.length > 0) stored.push(...(await coalesce(tx, organizationId, grouped)));
         return stored.map(toNotification);
       },
       { maxWait: 10_000, timeout: 30_000 },

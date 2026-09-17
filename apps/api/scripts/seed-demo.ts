@@ -23,7 +23,7 @@
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { hash } from 'bcryptjs';
+import { hash } from '@node-rs/bcrypt';
 import { SYSTEM_ROLES } from '../src/modules/organization';
 // The application's own client: it reads DATABASE_URL and the TLS settings the same way the
 // server does, so seeding a remote database needs no connection handling of its own.

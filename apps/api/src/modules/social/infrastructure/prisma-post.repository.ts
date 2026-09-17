@@ -14,17 +14,34 @@ const POST_SELECT = {
   createdAt: true,
   updatedAt: true,
   attachments: { select: { fileId: true }, orderBy: { position: 'asc' } },
-  _count: { select: { comments: { where: { deletedAt: null } } } },
 } satisfies Prisma.PostSelect;
 
 type PostRow = Prisma.PostGetPayload<{ select: typeof POST_SELECT }>;
+type Db = PrismaClient | Prisma.TransactionClient;
 
-function toPost({ _count, attachments, ...row }: PostRow): Post {
+function toPost({ attachments, ...row }: PostRow, commentCount: number): Post {
   return {
     ...row,
-    commentCount: _count.comments,
+    commentCount,
     attachmentIds: attachments.map((attachment) => attachment.fileId),
   };
+}
+
+/**
+ * Posts with their comment counts, counting only these posts' comments. Not Prisma's filtered
+ * `_count`: that joins a GROUP BY over every comment in the table, which took 2.8 seconds per
+ * feed page with 200,000 comments (load/README.md) and grew with every comment anyone wrote.
+ * This goes through the comments (post_id, created_at, id) index instead.
+ */
+async function withCommentCounts(db: Db, rows: PostRow[]): Promise<Post[]> {
+  if (rows.length === 0) return [];
+  const groups = await db.comment.groupBy({
+    by: ['postId'],
+    where: { postId: { in: rows.map((row) => row.id) }, deletedAt: null },
+    _count: { _all: true },
+  });
+  const counts = new Map(groups.map((group) => [group.postId, group._count._all]));
+  return rows.map((row) => toPost(row, counts.get(row.id) ?? 0));
 }
 
 const NEWEST_FIRST = [
@@ -49,7 +66,7 @@ export class PrismaPostRepository implements PostRepository {
           data: attachmentRows(post.organizationId, row.id, attachmentIds),
         });
       }
-      return { ...toPost(row), attachmentIds };
+      return { ...toPost(row, 0), attachmentIds };
     }, WRITE_TRANSACTION);
   }
 
@@ -58,7 +75,9 @@ export class PrismaPostRepository implements PostRepository {
       where: { id, organizationId, deletedAt: null },
       select: POST_SELECT,
     });
-    return row && toPost(row);
+    if (!row) return null;
+    const [post] = await withCommentCounts(this.prisma, [row]);
+    return post ?? null;
   }
 
   async update(
@@ -82,7 +101,9 @@ export class PrismaPostRepository implements PostRepository {
             });
           }
         }
-        return toPost(await tx.post.findUniqueOrThrow({ where: { id }, select: POST_SELECT }));
+        const row = await tx.post.findUniqueOrThrow({ where: { id }, select: POST_SELECT });
+        const [post] = await withCommentCounts(tx, [row]);
+        return post!;
       }, WRITE_TRANSACTION);
     } catch (err) {
       if (isRecordNotFound(err)) return null;
@@ -119,7 +140,7 @@ export class PrismaPostRepository implements PostRepository {
       take,
       select: POST_SELECT,
     });
-    return rows.map(toPost);
+    return withCommentCounts(this.prisma, rows);
   }
 
   async listFeedPage(
@@ -131,6 +152,6 @@ export class PrismaPostRepository implements PostRepository {
       this.prisma.post.findMany({ where, orderBy: NEWEST_FIRST, skip, take, select: POST_SELECT }),
       this.prisma.post.count({ where }),
     ]);
-    return { items: rows.map(toPost), total };
+    return { items: await withCommentCounts(this.prisma, rows), total };
   }
 }

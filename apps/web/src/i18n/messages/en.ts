@@ -405,6 +405,7 @@ export const en: Messages = {
     deactivated: 'Deactivated',
     noResults: 'Nobody matches “{query}”.',
     memberCount: { one: '{count} person', other: '{count} people' },
+    loadMore: 'Show more',
   },
   profile: {
     about: 'About',
@@ -571,6 +572,10 @@ export const en: Messages = {
     generic: 'You have a new notification',
   },
   admin: {
+    pages: 'Member pages',
+    pageOf: 'Page {page} of {pages}',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
     title: 'Admin',
     description: 'Members, invitations, departments and the audit log of {organization}.',
     tabMembers: 'Members',

@@ -1,5 +1,6 @@
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import { pageWindow, type PageQueryInput } from '../../../shared/http/pagination';
+import { parseSearchQuery } from '../../../shared/search/search-query';
 import {
   MEMBER_REMOVED,
   MEMBER_UPDATED,
@@ -8,7 +9,7 @@ import {
 } from '../domain/events';
 import { hasPermission, type OrganizationActor } from '../domain/organization-context';
 import { OrganizationErrors } from '../domain/organization-errors';
-import type { Member, MemberChange, MembershipRepository } from '../domain/ports';
+import type { Member, MemberChange, MemberFilter, MembershipRepository } from '../domain/ports';
 import { canAssignRole, canManageMember } from '../domain/role-hierarchy';
 
 export class MembershipService {
@@ -16,13 +17,31 @@ export class MembershipService {
 
   async list(
     actor: OrganizationActor,
-    page: PageQueryInput,
+    options: PageQueryInput & {
+      q?: string;
+      sort: MemberFilter['sort'];
+      departmentId?: string;
+    },
   ): Promise<{ items: Member[]; total: number; page: number; limit: number }> {
+    // Nothing searchable in it ("!!!") is no search at all, rather than one that finds nobody.
+    const query = options.q ? parseSearchQuery(options.q) : undefined;
     const { items, total } = await this.deps.members.listMembers(
       actor.organization.organizationId,
-      pageWindow(page),
+      pageWindow(options),
+      {
+        ...(query && query.terms.length > 0 && { query }),
+        ...(options.departmentId && { departmentId: options.departmentId }),
+        sort: options.sort,
+      },
     );
-    return { items, total, page: page.page, limit: page.limit };
+    return { items, total, page: options.page, limit: options.limit };
+  }
+
+  /** One member, for a profile page. */
+  async get(actor: OrganizationActor, userId: string): Promise<Member> {
+    const member = await this.deps.members.findMember(actor.organization.organizationId, userId);
+    if (!member) throw OrganizationErrors.memberNotFound();
+    return member;
   }
 
   /** Changes a member's role and/or status, respecting the role hierarchy and the last owner. */

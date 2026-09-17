@@ -4,7 +4,12 @@ import {
   isUniqueViolation,
 } from '../../../infrastructure/database/prisma-errors';
 import { OrganizationErrors } from '../domain/organization-errors';
-import type { Department, DepartmentChanges, DepartmentRepository } from '../domain/ports';
+import type {
+  Department,
+  DepartmentChanges,
+  DepartmentRef,
+  DepartmentRepository,
+} from '../domain/ports';
 
 const DEPARTMENT_SELECT = {
   id: true,
@@ -90,6 +95,23 @@ export class PrismaDepartmentRepository implements DepartmentRepository {
       select: { userId: true },
     });
     return rows.map((row) => row.userId);
+  }
+
+  async departmentsOf(
+    organizationId: string,
+    userIds: readonly string[],
+  ): Promise<Map<string, DepartmentRef[]>> {
+    const byUser = new Map<string, DepartmentRef[]>();
+    if (userIds.length === 0) return byUser;
+    const rows = await this.prisma.departmentMember.findMany({
+      where: { organizationId, userId: { in: [...userIds] } },
+      orderBy: { department: { name: 'asc' } },
+      select: { userId: true, department: { select: { id: true, name: true } } },
+    });
+    for (const row of rows) {
+      byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row.department]);
+    }
+    return byUser;
   }
 
   async addMember(organizationId: string, departmentId: string, userId: string): Promise<void> {

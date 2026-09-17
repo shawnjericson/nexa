@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import { NO_PASSWORD } from '../src/modules/identity/domain/user';
 import { bearer } from './helpers/auth';
 import { prisma, resetDatabase } from './helpers/db';
 
@@ -36,6 +37,20 @@ describe('try the demo', () => {
     // Somewhere to look around, which is the point.
     const feed = await request(app).get('/api/v1/feed').set(bearer(res.body.data.access_token));
     expect(feed.status).toBe(200);
+  });
+
+  it('gives a guest no password anyone could sign in with', async () => {
+    const app = demoApp();
+    const guest = await startDemo(app);
+    const email = guest.body.data.user.email as string;
+
+    const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+    expect(stored.passwordHash).toBe(NO_PASSWORD);
+
+    for (const password of [NO_PASSWORD.repeat(6), 'secret123']) {
+      const login = await request(app).post('/api/v1/auth/login').send({ email, password });
+      expect([login.status, login.body.code]).toEqual([401, 'INVALID_CREDENTIALS']);
+    }
   });
 
   it('never makes a guest the owner, even of an empty demo organization', async () => {

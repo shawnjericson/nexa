@@ -1017,12 +1017,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Members with their role and status */
+        /**
+         * Members with their role and status
+         * @description Searched, filtered by department and sorted in the database, one page at a time.
+         */
         get: {
             parameters: {
                 query?: {
                     page?: number;
                     limit?: number;
+                    /** @description Name or username; accents and case are ignored, and words match as prefixes */
+                    q?: string;
+                    /** @description joined: longest-standing first; newest: most recent first; name: by name */
+                    sort?: "joined" | "newest" | "name";
+                    /** @description Only this department, or "none" for people in no department */
+                    department_id?: string | "none";
                 };
                 header?: never;
                 path: {
@@ -1090,7 +1099,70 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** One member, with their role and status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    organizationId: string;
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One member, with their role and status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data: components["schemas"]["Member"];
+                        };
+                    };
+                };
+                /** @description Invalid input */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing, invalid or expired credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         /** Remove a member (member.remove), or leave when it is you */
@@ -3678,6 +3750,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/presence/online-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many other people in the organization are online */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Active organization. Optional when you belong to exactly one organization. */
+                    "x-organization-id"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description How many other people in the organization are online */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data: {
+                                online_count: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credentials */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/feed": {
         parameters: {
             query?: never;
@@ -5730,6 +5865,11 @@ export interface components {
             status: "ACTIVE" | "SUSPENDED";
             /** Format: date-time */
             joined_at: string;
+            departments: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            }[];
         };
         UserReference: {
             /** Format: uuid */
@@ -6148,6 +6288,7 @@ export interface components {
             action: string;
             actor: components["schemas"]["UserReference"];
             subject_id: string | null;
+            subject: components["schemas"]["UserReference"] & unknown;
             metadata: {
                 [key: string]: unknown;
             };

@@ -11,13 +11,7 @@ import { RichText } from '@/components/ui/rich-text';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/states';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
-import {
-  useDepartments,
-  useDepartmentsByUser,
-  useMembers,
-  usePresence,
-  useProfile,
-} from './queries';
+import { useMember, usePresence, useProfile } from './queries';
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -33,9 +27,7 @@ export function Profile({ userId }: { userId: string }) {
   const { t, tryT, formatDate } = useI18n();
   const { data: me } = useMe();
   const profile = useProfile(userId);
-  const members = useMembers();
-  const departments = useDepartments();
-  const { byUser } = useDepartmentsByUser(departments.data);
+  const membership = useMember(userId);
   const presence = usePresence([userId]);
 
   if (profile.isPending) {
@@ -62,8 +54,8 @@ export function Profile({ userId }: { userId: string }) {
   }
 
   const user = profile.data;
-  const member = members.data?.find((item) => item.user?.id === user.id);
-  const userDepartments = byUser.get(user.id) ?? [];
+  const member = membership.data;
+  const userDepartments = member?.departments ?? [];
   const online = presence.data?.[user.id] === 'online';
   const isMe = me?.id === user.id;
 

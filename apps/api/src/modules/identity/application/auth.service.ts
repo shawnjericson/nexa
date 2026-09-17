@@ -20,7 +20,7 @@ import type {
   RefreshTokenRepository,
   UserRepository,
 } from '../domain/ports';
-import type { User } from '../domain/user';
+import { NO_PASSWORD, type User } from '../domain/user';
 import { generateRefreshToken, hashRefreshToken } from './refresh-token';
 
 export interface AuthSettings {
@@ -75,6 +75,11 @@ function usernameCandidates(localPart: string): string[] {
   ];
 }
 
+/** The stored hash, or null when there is no account or it has no password. */
+function passwordOf(user: User | null): string | null {
+  return user && user.passwordHash !== NO_PASSWORD ? user.passwordHash : null;
+}
+
 export class AuthService {
   private readonly now: () => Date;
   private dummyHash?: Promise<string>;
@@ -105,11 +110,14 @@ export class AuthService {
     client: ClientInfo,
   ): Promise<{ user: User; tokens: AuthTokens }> {
     const user = await this.deps.users.findByEmail(input.email);
-    // Unknown emails are checked against a dummy hash so response time doesn't reveal
-    // which emails are registered (risk register 4.2).
-    const passwordHash = user?.passwordHash ?? (await this.getDummyHash());
-    const passwordMatches = await this.deps.passwords.verify(input.password, passwordHash);
-    if (!user || !passwordMatches) throw IdentityErrors.invalidCredentials();
+    // Unknown emails, and accounts without a password, are checked against a dummy hash so
+    // response time doesn't reveal which emails are registered (risk register 4.2).
+    const stored = passwordOf(user);
+    const passwordMatches = await this.deps.passwords.verify(
+      input.password,
+      stored ?? (await this.getDummyHash()),
+    );
+    if (!user || !stored || !passwordMatches) throw IdentityErrors.invalidCredentials();
     return this.signIn(user, client);
   }
 
@@ -150,9 +158,12 @@ export class AuthService {
   ): Promise<{ user: User; tokens: AuthTokens }> {
     const profile = await this.deps.linkTokens.verify(linkToken);
     const user = await this.deps.users.findByEmail(profile.email);
-    const passwordHash = user?.passwordHash ?? (await this.getDummyHash());
-    const passwordMatches = await this.deps.passwords.verify(password, passwordHash);
-    if (!user || !passwordMatches) throw IdentityErrors.invalidCredentials();
+    const stored = passwordOf(user);
+    const passwordMatches = await this.deps.passwords.verify(
+      password,
+      stored ?? (await this.getDummyHash()),
+    );
+    if (!user || !stored || !passwordMatches) throw IdentityErrors.invalidCredentials();
 
     await this.deps.users.linkIdentity(user.id, {
       provider: profile.provider,
@@ -242,8 +253,8 @@ export class AuthService {
   }
 
   private async createExternalUser(profile: ExternalProfile): Promise<User> {
-    // Nobody knows this password: the account signs in through the provider.
-    const passwordHash = await this.deps.passwords.hash(randomUUID());
+    // The account signs in through the provider.
+    const passwordHash = NO_PASSWORD;
     const localPart = profile.email.split('@')[0] ?? '';
     for (const username of usernameCandidates(localPart)) {
       try {
@@ -279,7 +290,7 @@ export class AuthService {
       email: `guest-${id}@${GUEST_EMAIL_DOMAIN}`,
       username: `khach_${id}`,
       displayName: `Khách ${id.slice(0, 4).toUpperCase()}`,
-      passwordHash: await this.deps.passwords.hash(randomUUID()),
+      passwordHash: NO_PASSWORD,
     });
     const event: GuestCreatedEvent = createEvent(GUEST_CREATED, {
       actor_id: user.id,

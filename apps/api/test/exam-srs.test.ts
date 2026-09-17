@@ -1,4 +1,4 @@
-import { compare } from 'bcryptjs';
+import { verify } from '@node-rs/bcrypt';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
@@ -58,7 +58,7 @@ describe('SRS 2 - data model', () => {
 
     const stored = await prisma.user.findUniqueOrThrow({ where: { id: alice.id } });
     expect(stored.passwordHash).toMatch(/^\$2[aby]\$\d{2}\$/);
-    expect(await compare('secret123', stored.passwordHash)).toBe(true);
+    expect(await verify('secret123', stored.passwordHash)).toBe(true);
   });
 
   it('Post has id, user_id, content, image_url, created_at and updated_at', async () => {
