@@ -81,6 +81,37 @@ describe('try the demo', () => {
     expect(await prisma.organization.count({ where: { name: 'Mine now' } })).toBe(0);
   });
 
+  it('seats a guest in the conversations already going on, with the latest one unread', async () => {
+    const app = demoApp();
+    // The first guest opens the demo and starts a channel with two messages in it.
+    const host = (await startDemo(app)).body.data.access_token as string;
+    const channel = (
+      await request(app)
+        .post('/api/v1/conversations')
+        .set(bearer(host))
+        .send({ type: 'CHANNEL', name: 'Chung' })
+    ).body.data as { id: string };
+    for (const [index, content] of ['Chào cả nhà', 'Họp lúc 3 giờ nhé'].entries()) {
+      await request(app)
+        .post(`/api/v1/conversations/${channel.id}/messages`)
+        .set(bearer(host))
+        .send({ content, client_message_id: `demo-message-${index}` })
+        .expect(201);
+    }
+
+    const visitor = (await startDemo(app)).body.data.access_token as string;
+    const inbox = await request(app).get('/api/v1/conversations').set(bearer(visitor));
+
+    expect(inbox.body.data).toEqual([
+      expect.objectContaining({
+        id: channel.id,
+        type: 'CHANNEL',
+        last_read_seq: 1,
+        unread_count: 1,
+      }),
+    ]);
+  });
+
   it('is not there at all when no demo organization is configured', async () => {
     const res = await request(createApp({ prisma })).post('/api/v1/auth/demo');
     expect([res.status, res.body.code]).toEqual([404, 'DEMO_UNAVAILABLE']);

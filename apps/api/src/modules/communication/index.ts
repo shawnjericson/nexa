@@ -6,7 +6,12 @@ import type { RealtimeHub } from '../../infrastructure/websocket/realtime-hub';
 import type { EventBus } from '../../shared/events/event-bus';
 import type { FileDirectory } from '../file';
 import type { Authenticate, UserDirectory } from '../identity';
-import type { OrganizationDirectory, ResolveOrganizationContext } from '../organization';
+import {
+  MEMBER_JOINED,
+  type MemberJoinedEvent,
+  type OrganizationDirectory,
+  type ResolveOrganizationContext,
+} from '../organization';
 import { ConversationService } from './application/conversation.service';
 import { MessageService } from './application/message.service';
 import type { ChatSearch } from './domain/search';
@@ -74,6 +79,11 @@ export function createCommunicationModule(deps: {
     files: deps.files,
     realtime,
     events: deps.events,
+  });
+
+  deps.events.subscribe<MemberJoinedEvent>(MEMBER_JOINED, async (event) => {
+    if (event.metadata.via !== 'demo' || !event.organization_id || !event.subject_id) return;
+    await conversations.seatDemoGuest(event.organization_id, event.subject_id);
   });
 
   registerChatSockets(deps.hub, {

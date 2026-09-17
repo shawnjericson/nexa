@@ -23,7 +23,7 @@ export type MemberInvitedEvent = DomainEvent<
 
 export type MemberJoinedEvent = DomainEvent<
   typeof MEMBER_JOINED,
-  { role: string; via: 'invitation' }
+  { role: string; via: 'invitation' | 'demo' }
 >;
 
 export type MemberUpdatedEvent = DomainEvent<

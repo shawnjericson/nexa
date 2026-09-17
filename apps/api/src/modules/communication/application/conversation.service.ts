@@ -243,6 +243,30 @@ export class ConversationService {
     await this.deps.realtime.membersChanged(conversation, [...current, ...added], { added });
   }
 
+  /**
+   * A demo guest walks into conversations already going on rather than an empty sidebar: every
+   * open channel of the demo, with its latest message left unread so there is something new to
+   * open. Called for a membership the organization module has just created, so no access check.
+   */
+  async seatDemoGuest(organizationId: string, userId: string): Promise<void> {
+    const channels = await this.deps.conversations.listChannels(organizationId, userId);
+    for (const { conversation, joined } of channels) {
+      if (joined || conversation.archivedAt) continue;
+      const current = await this.deps.conversations.listMemberIds(conversation.id);
+      await this.deps.conversations.addMembers(organizationId, conversation.id, [userId], 'MEMBER');
+      if (conversation.lastMessageSeq > 1) {
+        await this.deps.conversations.markRead(
+          conversation.id,
+          userId,
+          conversation.lastMessageSeq - 1,
+        );
+      }
+      await this.deps.realtime.membersChanged(conversation, [...current, userId], {
+        added: [userId],
+      });
+    }
+  }
+
   /** Leaving is always allowed; removing others needs owner/admin, and only owners remove owners. */
   async removeMember(actor: ChatActor, id: string, userId: string): Promise<void> {
     const { conversation, membership } = await this.access(actor, id);

@@ -1,7 +1,7 @@
 import type { RequestHandler, Router } from 'express';
 import type { Env } from '../../config/env';
 import type { PrismaClient } from '../../generated/prisma/client';
-import type { EventBus } from '../../shared/events/event-bus';
+import { createEvent, type EventBus } from '../../shared/events/event-bus';
 import {
   GUEST_CREATED,
   USER_REGISTERED,
@@ -10,6 +10,7 @@ import {
   type UserDirectory,
   type UserRegisteredEvent,
 } from '../identity';
+import { MEMBER_JOINED, type MemberJoinedEvent } from './domain/events';
 import { DepartmentService } from './application/department.service';
 import { InvitationService } from './application/invitation.service';
 import { MembershipService } from './application/membership.service';
@@ -36,6 +37,7 @@ export {
   MEMBER_UPDATED,
   ORGANIZATION_CREATED,
   ORGANIZATION_UPDATED,
+  type MemberJoinedEvent,
   type MemberUpdatedEvent,
 } from './domain/events';
 export {
@@ -96,6 +98,14 @@ export function createOrganizationModule(deps: {
         firstMember: 'MEMBER',
         others: 'MEMBER',
       });
+      // Other modules furnish the visit - chat seats the guest in the demo's channels.
+      const joined: MemberJoinedEvent = createEvent(MEMBER_JOINED, {
+        organization_id: demo.id,
+        actor_id: event.subject_id,
+        subject_id: event.subject_id,
+        metadata: { role: 'MEMBER', via: 'demo' },
+      });
+      await events.publish(joined);
     });
   }
 
