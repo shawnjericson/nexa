@@ -56,6 +56,37 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  local-setup:
+    name: Run it on your machine
+    runs-on: ubuntu-latest
+    concurrency:
+      group: local-setup-${{ github.ref }}
+      cancel-in-progress: true
+
+    # The steps of "Run it on your machine" in the README, in the same order, so that anyone
+    # without access to the shared databases can still start NEXA from a fresh clone.
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: docker compose up -d --wait
+      - run: pnpm install --frozen-lockfile
+      - run: cp apps/api/.env.local.example apps/api/.env
+      - run: pnpm --filter @nexa/api db:generate
+      - run: pnpm --filter @nexa/api db:deploy
+      - run: pnpm --filter @nexa/api seed:demo -- --org nexa --create --name NEXA --yes
+
+      - name: Start the API and walk through it
+        run: |
+          pnpm --filter @nexa/api build
+          (cd apps/api && node dist/server.js > ../../api.log 2>&1 &)
+          node scripts/smoke-test.mjs http://localhost:4000 || { cat api.log; exit 1; }
+
   deploy:
     name: Deploy to the VPS
     needs: check

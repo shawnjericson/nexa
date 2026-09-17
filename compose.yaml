@@ -1,0 +1,41 @@
+# Databases for running NEXA on your own machine, without access to the shared development
+# databases on the VPS (ADR-011). See "Run it on your machine" in the README.
+#
+#   docker compose up -d --wait                  # PostgreSQL only - all the API needs
+#   docker compose --profile redis up -d --wait  # plus Redis, for presence across instances
+#
+# CI runs exactly these steps (the "Run it on your machine" job), so they stay true.
+name: nexa
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: nexa
+      POSTGRES_PASSWORD: nexa
+      POSTGRES_DB: nexa
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres:/var/lib/postgresql
+      # nexa_test for the integration tests, nexa_shadow for `prisma migrate dev`.
+      - ./scripts/local-databases.sql:/docker-entrypoint-initdb.d/local-databases.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nexa -d nexa']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8
+    profiles: [redis]
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres:
