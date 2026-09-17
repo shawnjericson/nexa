@@ -16,13 +16,19 @@
  *
  * Demo accounts get a random password unless SEED_PASSWORD is set; they exist to be seen in the
  * directory, the feed and the conversations, not to be signed in to.
+ *
+ * Pictures in chat are real attachments, uploaded to the object storage in S3_BUCKET, because
+ * that is the only way a message carries one. Without a bucket the messages stay text. Running
+ * the script again adds the pictures to channels seeded before they existed.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { hash } from 'bcryptjs';
 import { SYSTEM_ROLES } from '../src/modules/organization';
 // The application's own client: it reads DATABASE_URL and the TLS settings the same way the
 // server does, so seeding a remote database needs no connection handling of its own.
 import { prisma } from '../src/infrastructure/database/prisma';
+import { objectStorage } from '../src/infrastructure/storage/storage';
 
 const DEMO_DOMAIN = 'demo.nexa.local';
 /** Demo visitors ("try the demo"); --reset clears them along with the invented people. */
@@ -34,6 +40,8 @@ const GUEST_DOMAIN = 'guest.nexa.local';
  */
 const avatarOf = (username: string) => `/demo/avatars/${username}.svg`;
 const postImage = (name: string) => `/demo/posts/${name}.svg`;
+/** Photos attached to channel messages: JPEGs next to this script, 1600px wide at most. */
+const chatImage = (name: string) => new URL(`./demo-images/${name}.jpg`, import.meta.url);
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -148,7 +156,21 @@ const POSTS = [
   },
 ];
 
-const CHANNELS = [
+interface SeedMessage {
+  by: string;
+  minutes: number;
+  text: string;
+  /** A photo in demo-images/ to attach. */
+  image?: string;
+}
+
+const CHANNELS: Array<{
+  slug: string;
+  name: string;
+  description: string;
+  members: string[];
+  messages: SeedMessage[];
+}> = [
   {
     slug: 'chung',
     name: 'Chung',
@@ -156,7 +178,12 @@ const CHANNELS = [
     members: PEOPLE.map((person) => person.username),
     messages: [
       { by: 'an.nguyen', minutes: 300, text: 'Chào cả nhà, kênh này để trao đổi chung nhé.' },
-      { by: 'ha.vo', minutes: 290, text: 'Em vừa cập nhật lịch nghỉ lễ vào mục tài liệu ạ.' },
+      {
+        by: 'ha.vo',
+        minutes: 290,
+        text: 'Em vừa cập nhật lịch nghỉ lễ vào mục tài liệu ạ.',
+        image: 'holiday-calendar',
+      },
       { by: 'khanh.do', minutes: 240, text: 'Chiều nay phòng họp lớn có ai dùng không ạ?' },
       { by: 'chi.le', minutes: 236, text: 'Bên em dùng tới 3 giờ, sau đó trống nhé anh.' },
       { by: 'khanh.do', minutes: 230, text: 'Vậy em đặt từ 3 rưỡi. Cảm ơn chị.' },
@@ -164,6 +191,7 @@ const CHANNELS = [
         by: 'linh.bui',
         minutes: 120,
         text: 'Ảnh chụp buổi team building em để trong kênh này luôn nha.',
+        image: 'team-building',
       },
       { by: 'minh.hoang', minutes: 40, text: 'Nhìn ai cũng tươi ghê 😄' },
     ],
@@ -174,18 +202,25 @@ const CHANNELS = [
     description: 'Triển khai, sự cố và những thứ đang chạy trên máy chủ.',
     members: ['binh.tran', 'dung.pham', 'an.nguyen', 'chi.le'],
     messages: [
-      { by: 'dung.pham', minutes: 480, text: 'Đã vá xong lỗi rò kết nối cơ sở dữ liệu đêm qua.' },
+      {
+        by: 'dung.pham',
+        minutes: 480,
+        text: 'Đã vá xong lỗi rò kết nối cơ sở dữ liệu đêm qua.',
+        image: 'db-connections',
+      },
       { by: 'binh.tran', minutes: 470, text: 'Biểu đồ bộ nhớ phẳng lại rồi, chuẩn.' },
       {
         by: 'binh.tran',
         minutes: 180,
         text: 'Em đang tách phần tìm kiếm ra khỏi luồng chính, chiều nay có bản thử.',
+        image: 'search-refactoring',
       },
       { by: 'an.nguyen', minutes: 176, text: 'Nhớ đo thời gian phản hồi trước và sau giúp anh.' },
       {
         by: 'dung.pham',
         minutes: 60,
         text: 'Bản thử đã lên môi trường nháp, mọi người vào thử giúp em.',
+        image: 'staging',
       },
     ],
   },
@@ -195,13 +230,19 @@ const CHANNELS = [
     description: 'Cà phê, ảnh chó mèo và những thứ không liên quan tới công việc.',
     members: ['chi.le', 'linh.bui', 'minh.hoang', 'ha.vo', 'khanh.do'],
     messages: [
-      { by: 'linh.bui', minutes: 400, text: 'Quán cà phê mới mở gần văn phòng ngon bất ngờ ☕' },
+      {
+        by: 'linh.bui',
+        minutes: 400,
+        text: 'Quán cà phê mới mở gần văn phòng ngon bất ngờ ☕',
+        image: 'coffee',
+      },
       { by: 'minh.hoang', minutes: 395, text: 'Trưa nay đi thử không?' },
       { by: 'chi.le', minutes: 390, text: 'Cho em một chân với 🙋' },
       {
         by: 'ha.vo',
         minutes: 30,
         text: 'Ai để quên bình giữ nhiệt ở phòng họp thì qua chỗ em nhận nhé.',
+        image: 'thermos',
       },
     ],
   },
@@ -301,6 +342,12 @@ async function main() {
     if (ids.length > 0) {
       // Conversations and posts they created go with them; everyone else's content stays.
       await prisma.message.deleteMany({ where: { senderId: { in: ids } } });
+      const files = await prisma.file.findMany({
+        where: { uploadedById: { in: ids } },
+        select: { id: true, storageKey: true },
+      });
+      await prisma.file.deleteMany({ where: { id: { in: files.map((item) => item.id) } } });
+      await Promise.all(files.map((item) => objectStorage?.delete(item.storageKey)));
       await prisma.conversation.deleteMany({ where: { createdById: { in: ids } } });
       await prisma.conversationMember.deleteMany({ where: { userId: { in: ids } } });
       await prisma.comment.deleteMany({ where: { authorId: { in: ids } } });
@@ -554,6 +601,73 @@ async function main() {
     });
     return created;
   }
+
+  // ── Pictures in channels ────────────────────────────────────────────────
+  // A separate pass, so channels seeded before the pictures existed get them too. A message is
+  // found by its conversation, author and text, and only ever gets a picture once.
+  let attached = 0;
+  const storage = objectStorage;
+  for (const channel of storage ? CHANNELS : []) {
+    for (const message of channel.messages.filter((item) => item.image)) {
+      const target = await prisma.message.findFirst({
+        where: {
+          organizationId: organization.id,
+          conversation: { slug: channel.slug },
+          senderId: id(message.by),
+          content: message.text,
+          attachments: { none: {} },
+        },
+        select: { id: true },
+      });
+      if (!target) continue;
+
+      const bytes = readFileSync(chatImage(message.image!));
+      const storageKey = `org/${organization.id}/files/${randomUUID()}`;
+      const upload = await storage!.presignUpload(storageKey, {
+        contentType: 'image/jpeg',
+        size: bytes.length,
+        expiresInSeconds: 300,
+      });
+      const put = await fetch(upload.url, {
+        method: upload.method,
+        headers: upload.headers,
+        body: bytes,
+      });
+      if (!put.ok) throw new Error(`Uploading ${message.image} failed: HTTP ${put.status}`);
+
+      await prisma.$transaction(async (tx) => {
+        const stored = await tx.file.create({
+          data: {
+            organizationId: organization.id,
+            uploadedById: id(message.by),
+            storageKey,
+            filename: `${message.image}.jpg`,
+            mimeType: 'image/jpeg',
+            size: bytes.length,
+            status: 'READY',
+            uploadedAt: new Date(),
+          },
+          select: { id: true },
+        });
+        // Through the attachment table: the composite key to the message rules out a nested create.
+        await tx.messageAttachment.create({
+          data: {
+            messageId: target.id,
+            fileId: stored.id,
+            organizationId: organization.id,
+            position: 0,
+          },
+        });
+        await tx.message.update({ where: { id: target.id }, data: { type: 'IMAGE' } });
+      });
+      attached += 1;
+    }
+  }
+  console.log(
+    objectStorage
+      ? `Pictures:     ${attached} attached to channel messages`
+      : 'Pictures:     skipped - no S3_BUCKET, so channel messages stay text',
+  );
 
   for (const thread of DIRECTS) {
     const created = await direct(thread.between[0], thread.between[1]);
