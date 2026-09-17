@@ -9,11 +9,13 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { AuthArtwork } from '@/components/brand/auth-artwork';
 import { Logo } from '@/components/brand/logo';
 import { LanguageSwitch } from '@/components/shell/language-switch';
-import { getTranslator } from '@/i18n/server';
+import { getLocale, getTranslator } from '@/i18n/server';
 
 const FEATURES = [
   { icon: MessagesSquare, title: 'landing.featureChat', text: 'landing.featureChatText' },
@@ -64,6 +66,27 @@ function TryDemo({ label, hint }: { label: string; hint: string }) {
   );
 }
 
+/** What a shared link shows in chat apps, social networks and search results. */
+export async function generateMetadata(): Promise<Metadata> {
+  const [{ t }, locale] = await Promise.all([getTranslator(), getLocale()]);
+  const title = `NEXA - ${t('landing.eyebrow')}`;
+  const description = t('landing.subtitle');
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: '/' },
+    openGraph: {
+      type: 'website',
+      siteName: 'NEXA',
+      url: '/',
+      title,
+      description,
+      locale: locale === 'vi' ? 'vi_VN' : 'en_US',
+    },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
+
 /**
  * The front door (/). Someone deciding whether NEXA is worth their time should understand it in
  * a minute and be able to use it in one click, without an account - not meet a sign-in form.
@@ -112,7 +135,7 @@ export default async function Landing({
             </nav>
           </header>
 
-          <div className="mt-14 max-w-2xl md:mt-24">
+          <div className="mt-14 max-w-2xl md:mt-24 xl:max-w-xl">
             <p className="text-xs font-semibold tracking-[0.18em] text-[#7fe4cf] uppercase">
               {t('landing.eyebrow')}
             </p>
@@ -133,6 +156,14 @@ export default async function Landing({
                 {notice}
               </p>
             )}
+          </div>
+
+          {/* The product itself, beside the pitch, where the screen is wide enough for both. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-36 left-[62%] hidden w-[880px] overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/15 xl:block"
+          >
+            <Image src="/landing/preview.png" alt="" width={1440} height={900} priority />
           </div>
         </div>
       </section>

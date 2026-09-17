@@ -11,10 +11,17 @@ const inter = Inter({
   display: 'swap',
 });
 
+/** Link previews need absolute addresses; without it (in development) Next.js uses localhost. */
+const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL?.trim() || undefined;
+
 export const metadata: Metadata = {
+  ...(PUBLIC_APP_URL && { metadataBase: new URL(PUBLIC_APP_URL) }),
   title: { default: 'NEXA', template: '%s · NEXA' },
   description: 'NEXA Workplace - Work. Connect. Grow.',
   applicationName: 'NEXA',
+  // The picture itself is app/opengraph-image.png.
+  openGraph: { type: 'website', siteName: 'NEXA' },
+  twitter: { card: 'summary_large_image' },
 };
 
 export const viewport: Viewport = {
