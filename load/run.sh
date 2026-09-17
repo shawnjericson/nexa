@@ -18,6 +18,13 @@ cd "$DIR/load/k6"
 git -C "$DIR" log -1 --format='%h %s' >"$OUT/commit.txt"
 
 for scenario in $SCENARIOS; do
+  # A fresh API for every scenario: work a previous one left queued - requests k6 gave up on keep
+  # running on the server - would otherwise be measured as part of this one.
+  pm2 restart nexa-load >/dev/null
+  for attempt in $(seq 1 30); do
+    curl -fsS http://127.0.0.1:4200/ready >/dev/null 2>&1 && break
+    sleep 2
+  done
   echo "==> $scenario ($(date -u +%T))"
   extra=()
   [ "$scenario" = directory ] && extra=(-e "MODE=${DIRECTORY_MODE:-all-pages}")
@@ -27,6 +34,6 @@ for scenario in $SCENARIOS; do
   "$DIR/load/monitor.sh" "$k6_pid" >"$OUT/$scenario-host.csv"
   wait "$k6_pid" || true
   tail -n 12 "$OUT/$scenario.txt"
-  # Let the server settle, so one scenario's backlog isn't measured in the next.
+  # And a pause, so PostgreSQL has finished what the last one asked of it.
   sleep 30
 done

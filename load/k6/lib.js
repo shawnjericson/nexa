@@ -41,7 +41,8 @@ export function summaryTo(file) {
   return (data) => {
     const lines = [];
     for (const [name, metric] of Object.entries(data.metrics)) {
-      if (metric.type === 'trend' && name.startsWith('http_req_duration')) {
+      // Request durations, and the scenarios' own measures (directory_ready).
+      if (metric.type === 'trend' && metric.values.count !== undefined) {
         const v = metric.values;
         lines.push(
           `${name.padEnd(48)} p50 ${v.med.toFixed(0).padStart(6)} ms  p95 ${v['p(95)'].toFixed(0).padStart(6)} ms  max ${v.max.toFixed(0).padStart(6)} ms  n ${v.count}`,
