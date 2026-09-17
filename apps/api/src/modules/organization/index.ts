@@ -3,7 +3,9 @@ import type { Env } from '../../config/env';
 import type { PrismaClient } from '../../generated/prisma/client';
 import type { EventBus } from '../../shared/events/event-bus';
 import {
+  GUEST_CREATED,
   USER_REGISTERED,
+  type GuestCreatedEvent,
   type ProfileVisibility,
   type UserDirectory,
   type UserRegisteredEvent,
@@ -73,7 +75,7 @@ export interface OrganizationModule {
 export function createOrganizationModule(deps: {
   prisma: PrismaClient;
   events: EventBus;
-  config: Pick<Env, 'DEFAULT_ORG_SLUG' | 'DEFAULT_ORG_NAME' | 'SIGNUP_MODE'>;
+  config: Pick<Env, 'DEFAULT_ORG_SLUG' | 'DEFAULT_ORG_NAME' | 'SIGNUP_MODE' | 'DEMO_ORG_SLUG'>;
 }): OrganizationModule {
   const { prisma, events, config } = deps;
   const organizations = new PrismaOrganizationRepository(prisma);
@@ -82,6 +84,20 @@ export function createOrganizationModule(deps: {
     organizations,
     defaultOrganization: { slug: config.DEFAULT_ORG_SLUG, name: config.DEFAULT_ORG_NAME },
   });
+
+  // A demo visitor goes straight into the demo, and only ever as a plain member - never as the
+  // owner of an organization that happened to be empty.
+  const demoSlug = config.DEMO_ORG_SLUG;
+  if (demoSlug) {
+    events.subscribe<GuestCreatedEvent>(GUEST_CREATED, async (event) => {
+      if (!event.subject_id) return;
+      const demo = await organizations.ensureOrganization({ slug: demoSlug, name: 'NEXA Demo' });
+      await organizations.addMember(demo.id, event.subject_id, {
+        firstMember: 'MEMBER',
+        others: 'MEMBER',
+      });
+    });
+  }
 
   // Under "invite", registering gets you an account and nothing else: an invitation, bound to
   // your e-mail address, is what puts you inside an organization.

@@ -62,6 +62,11 @@ const EnvSchema = z
      * read the staff directory and the company feed.
      */
     SIGNUP_MODE: z.enum(['open', 'invite']).default('open'),
+    /**
+     * The organization "try the demo" drops a visitor into, as a guest with no password. Unset,
+     * there is no demo button and POST /auth/demo answers 404.
+     */
+    DEMO_ORG_SLUG: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 
     // Public address of the API, used in links it hands out (avatar pictures). Defaults to
     // http://localhost:PORT.

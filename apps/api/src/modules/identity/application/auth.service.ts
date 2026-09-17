@@ -1,8 +1,14 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { AppError } from '../../../shared/errors/app-error';
 import { createEvent, type EventBus } from '../../../shared/events/event-bus';
 import type { AuthContext } from '../domain/auth-context';
-import { USER_REGISTERED, type UserRegisteredEvent } from '../domain/events';
+import {
+  GUEST_CREATED,
+  USER_REGISTERED,
+  type GuestCreatedEvent,
+  type UserRegisteredEvent,
+} from '../domain/events';
+import { GUEST_EMAIL_DOMAIN } from '../domain/guest';
 import { IdentityErrors } from '../domain/identity-errors';
 import type {
   AccessTokenService,
@@ -249,6 +255,28 @@ export class AuthService {
   }
 
   /** New accounts join the default organization through this event (ADR-012). */
+  /**
+   * "Try the demo": an account nobody holds the password to, seated in the demo organization
+   * before this returns - handlers run in order and are awaited - and signed straight in. It does
+   * not publish USER_REGISTERED, so a guest never lands in the default organization instead.
+   */
+  async startDemo(client: ClientInfo): Promise<{ user: User; tokens: AuthTokens }> {
+    const id = randomBytes(5).toString('hex');
+    const user = await this.deps.users.create({
+      email: `guest-${id}@${GUEST_EMAIL_DOMAIN}`,
+      username: `khach_${id}`,
+      displayName: `Khách ${id.slice(0, 4).toUpperCase()}`,
+      passwordHash: await this.deps.passwords.hash(randomUUID()),
+    });
+    const event: GuestCreatedEvent = createEvent(GUEST_CREATED, {
+      actor_id: user.id,
+      subject_id: user.id,
+      metadata: {},
+    });
+    await this.deps.events.publish(event);
+    return this.signIn(user, client);
+  }
+
   private async publishRegistered(user: User): Promise<void> {
     const event: UserRegisteredEvent = createEvent(USER_REGISTERED, {
       actor_id: user.id,

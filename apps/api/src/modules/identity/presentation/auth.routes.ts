@@ -3,6 +3,7 @@ import { createRateLimiter } from '../../../shared/http/rate-limit';
 import { created, noContent, ok } from '../../../shared/http/response';
 import { validate } from '../../../shared/http/validate';
 import type { AuthService, ClientInfo } from '../application/auth.service';
+import { IdentityErrors } from '../domain/identity-errors';
 import { requireAuthContext } from './require-auth';
 import {
   ChangePasswordBody,
@@ -24,14 +25,27 @@ function clientInfo(req: Request): ClientInfo {
   return { userAgent: req.get('user-agent')?.slice(0, 512), ipAddress: req.ip };
 }
 
-export function createAuthRouter(deps: { auth: AuthService; requireAuth: RequestHandler }): Router {
-  const { auth, requireAuth } = deps;
+export function createAuthRouter(deps: {
+  auth: AuthService;
+  requireAuth: RequestHandler;
+  /** Whether "try the demo" is on (DEMO_ORG_SLUG is set). */
+  demoEnabled?: boolean;
+}): Router {
+  const { auth, requireAuth, demoEnabled = false } = deps;
   const router = Router();
   // Brute force and credential stuffing protection (risk register 4.2 and 17).
   const authLimiter = createRateLimiter({ windowMs: 15 * 60_000, limit: 20 });
   // A refresh token is a long random secret with reuse detection, so there is nothing to guess;
   // and every page load spends one. Refreshing only needs a flood guard.
   const refreshLimiter = createRateLimiter({ windowMs: 60_000, limit: 60 });
+
+  // Every call creates an account, so this is capped per address rather than just throttled.
+  const demoLimiter = createRateLimiter({ windowMs: 60 * 60_000, limit: 10 });
+  router.post('/demo', demoLimiter, async (req, res) => {
+    if (!demoEnabled) throw IdentityErrors.demoUnavailable();
+    const { user, tokens } = await auth.startDemo(clientInfo(req));
+    created(res, { ...toTokensResponse(tokens), user: toMeResponse(user) });
+  });
 
   router.post('/register', authLimiter, validate({ body: RegisterBody }), async (req, res) => {
     const body = req.body as RegisterInput;

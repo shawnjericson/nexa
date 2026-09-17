@@ -50,4 +50,7 @@ export const IdentityErrors = {
       'INVALID_LINK_TOKEN',
       'The connection request has expired; sign in with the provider again',
     ),
+  demoUnavailable: () => new AppError(404, 'DEMO_UNAVAILABLE', 'There is no demo on this server'),
+  guestNotAllowed: () =>
+    new AppError(403, 'GUEST_NOT_ALLOWED', 'Create an account of your own to do this'),
 };

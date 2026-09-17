@@ -148,6 +148,9 @@ export function createApp({
   app.use(express.json({ limit: '100kb' }));
 
   const v1 = express.Router();
+  // Demo guests look around; a workspace of their own, or files in paid storage, takes an account.
+  v1.post('/organizations', identity.requireAuth, identity.forbidGuests);
+  v1.post('/files', identity.requireAuth, identity.forbidGuests);
   v1.use('/auth', identity.authRouter);
   v1.use('/users', identity.usersRouter);
   v1.use(organizationRouter);

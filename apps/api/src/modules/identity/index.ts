@@ -24,11 +24,18 @@ import {
   createRequireAuth,
   type Authenticate,
 } from './presentation/require-auth';
+import { createForbidGuests } from './presentation/forbid-guests';
 import { createUsersRouter } from './presentation/users.routes';
 
 // Public contract of the Identity module - other modules import only from here.
 export type { AuthContext } from './domain/auth-context';
-export { USER_REGISTERED, type UserRegisteredEvent } from './domain/events';
+export {
+  GUEST_CREATED,
+  USER_REGISTERED,
+  type GuestCreatedEvent,
+  type UserRegisteredEvent,
+} from './domain/events';
+export { GUEST_EMAIL_DOMAIN, isGuestEmail } from './domain/guest';
 export type {
   AvatarWriter,
   ExternalIdentityVerifier,
@@ -48,9 +55,12 @@ export type IdentityConfig = Pick<
   | 'REFRESH_REUSE_GRACE_SECONDS'
   | 'BCRYPT_ROUNDS'
   | 'GOOGLE_CLIENT_ID'
+  | 'DEMO_ORG_SLUG'
 >;
 
 export interface IdentityModule {
+  /** Refuses demo guests; mount after requireAuth on routes that need a real account. */
+  forbidGuests: RequestHandler;
   authRouter: Router;
   usersRouter: Router;
   requireAuth: RequestHandler;
@@ -104,8 +114,9 @@ export function createIdentityModule(deps: {
 
   return {
     requireAuth,
+    forbidGuests: createForbidGuests(users),
     authenticate,
-    authRouter: createAuthRouter({ auth, requireAuth }),
+    authRouter: createAuthRouter({ auth, requireAuth, demoEnabled: Boolean(config.DEMO_ORG_SLUG) }),
     usersRouter: createUsersRouter({
       users: new UserService({ users, visibility: profileVisibility }),
       requireAuth,
