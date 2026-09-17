@@ -157,8 +157,10 @@ export function MessageItem({
 
   return (
     <div
+      // Focusable so a tap on a touch screen, where nothing hovers, brings up the toolbar.
+      tabIndex={-1}
       className={cn(
-        'group relative flex gap-3 rounded-md px-2 hover:bg-surface-subtle/60',
+        'group relative flex gap-3 rounded-md px-2 outline-none hover:bg-surface-subtle/60 focus-within:bg-surface-subtle/60',
         showHeader ? 'mt-3 pt-1' : 'mt-px',
       )}
     >
@@ -217,8 +219,9 @@ export function MessageItem({
       </div>
 
       {showToolbar && (
-        // Hidden until the message is hovered or focused; always there on touch screens.
-        <div className="absolute -top-3 right-2 hidden items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-sm group-focus-within:flex group-hover:flex max-md:flex">
+        // Hidden until the message is hovered, or focused - which is what a tap does on a phone.
+        // Showing it on every message at once covered the text on small screens.
+        <div className="absolute -top-3 right-2 hidden items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-sm group-focus-within:flex group-hover:flex">
           {canCopy && <ToolbarButton label={t('chat.copy')} icon={Copy} onClick={copy} />}
           {canEdit && (
             <ToolbarButton
