@@ -35,4 +35,11 @@ export default defineConfig(
       globals: { ...globals.browser },
     },
   },
+  {
+    // k6 scripts run in k6's own runtime, not Node.
+    files: ['load/k6/**/*.js'],
+    languageOptions: {
+      globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly', open: 'readonly' },
+    },
+  },
 );

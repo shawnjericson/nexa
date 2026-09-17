@@ -39,3 +39,7 @@ apps/api/.agents/
 apps/api/.claude/
 apps/api/.windsurf/
 apps/api/skills-lock.json
+
+# Load tests: minted tokens and raw results stay on the machine that ran them
+load/out/
+load/results/
