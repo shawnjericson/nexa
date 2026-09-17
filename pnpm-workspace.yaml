@@ -9,3 +9,10 @@ onlyBuiltDependencies:
 
 ignoredBuiltDependencies:
   - '@scarf/scarf'
+
+# Patched versions of packages only the Prisma CLI pulls in (Studio, MySQL driver, config
+# loader); none of them runs in the API, but they keep `pnpm audit` and the Security tab clean.
+overrides:
+  deepmerge-ts: ^8.0.2
+  lodash: ^4.18.1
+  mysql2: ^3.24.4
