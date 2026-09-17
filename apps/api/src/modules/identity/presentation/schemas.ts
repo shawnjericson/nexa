@@ -123,6 +123,7 @@ export const UserProfile = z
     username: z.string(),
     display_name: z.string(),
     avatar_url: z.string().nullable(),
+    avatar: z.string().nullable().openapi({ description: 'Same as avatar_url (exam contract)' }),
     bio: z.string().nullable(),
     status: z.enum(['ACTIVE', 'DEACTIVATED']),
     created_at: z.iso.datetime(),

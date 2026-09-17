@@ -25,6 +25,8 @@ export function toProfileResponse(user: User) {
     username: user.username,
     display_name: user.displayName,
     avatar_url: user.avatarUrl,
+    /** The exam's name for the same field (SRS §2); PUT /me accepts it too. */
+    avatar: user.avatarUrl,
     bio: user.bio,
     status: user.status,
     created_at: user.createdAt.toISOString(),

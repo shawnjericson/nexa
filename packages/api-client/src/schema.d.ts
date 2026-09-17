@@ -5605,6 +5605,8 @@ export interface components {
             username: string;
             display_name: string;
             avatar_url: string | null;
+            /** @description Same as avatar_url (exam contract) */
+            avatar: string | null;
             bio: string | null;
             /** @enum {string} */
             status: "ACTIVE" | "DEACTIVATED";
@@ -6029,6 +6031,11 @@ export interface components {
             id: string;
             /** Format: uuid */
             organization_id: string;
+            /**
+             * Format: uuid
+             * @description The author's id (exam contract)
+             */
+            user_id: string;
             author: components["schemas"]["UserReference"];
             content: string;
             image_url: string | null;
@@ -6112,6 +6119,11 @@ export interface components {
             post_id: string;
             /** Format: uuid */
             parent_id: string | null;
+            /**
+             * Format: uuid
+             * @description The author's id (exam contract)
+             */
+            user_id: string;
             author: components["schemas"]["UserReference"];
             content: string;
             can_delete: boolean;

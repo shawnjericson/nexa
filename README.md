@@ -96,6 +96,40 @@ openssl x509 -in apps/api/certs/postgres-server.pem -noout -fingerprint -sha256
 | `/api/v1/*`     | NEXA API                      |
 | `/api/*`        | Same endpoints, exam contract |
 
+## Exam requirements
+
+The exam brief is [`docs/specs/NodeJS.docx`](docs/specs) (a Social Media API). Its routes live under
+`/api/*` next to NEXA's `/api/v1/*`, over the same services (ADR-010).
+[`apps/api/test/exam-srs.test.ts`](apps/api/test/exam-srs.test.ts) checks every requirement the way
+the exam does: through `/api/*`, with exactly the payloads the brief lists and no NEXA extras.
+
+| Brief                                     | Where                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Node.js, ExpressJS, JWT                   | Express 5; HS256 access tokens (`jose`)                                                                                   |
+| Database with an ORM                      | PostgreSQL 18 with Prisma 7                                                                                               |
+| §2 User: id, username, email, avatar...   | `users`; responses carry `avatar` as well as `avatar_url`                                                                 |
+| §2 Post: id, user_id, content, image_url  | `posts`; responses carry `user_id` as well as the `author` object                                                         |
+| §2 Comment: id, post_id, user_id...       | `comments`; responses carry `user_id` as well as `author`                                                                 |
+| §3.1 `POST /api/auth/register`, `/login`  | Returns the user without the password; login returns `access_token`                                                       |
+| §3.2 `GET /api/users/me`, `/:id`, `PUT`   | `PUT /api/users/me` takes `avatar` and `username`                                                                         |
+| §3.3 `/api/posts` with `page` & `limit`   | `pagination: { page, limit, total, total_pages, has_next }`                                                               |
+| §3.3 `PUT`/`DELETE /api/posts/:id`        | Author only - on these routes not even a moderator (see below)                                                            |
+| §3.4 `/api/comments/post/:postId`, `/:id` | Delete is author only                                                                                                     |
+| §4 Layered architecture                   | Each module: `presentation` (routes and handlers) → `application` (services) → `domain` → `infrastructure` (repositories) |
+| §4 bcrypt                                 | `bcryptjs`, 12 rounds                                                                                                     |
+| §4 JWT middleware                         | `requireAuth` on every exam route except auth                                                                             |
+| §4 Author-only edits and deletes          | Policies in each module's `domain/policies.ts`                                                                            |
+| §4 Validation (email, password ≥ 6)       | Zod schemas, applied by the `validate` middleware                                                                         |
+| §4 Global error handler                   | One handler; every error is `{ "error": "...", "status": 400, ... }`                                                      |
+
+NEXA lets organization moderators remove other people's content (ADR-013). The exam has no
+moderators, and the first person to register owns the default organization - so requests through
+`/api/*` act without the moderation permission, and there only the author may edit or delete.
+
+The exam knows nothing about organizations, so its flow needs `SIGNUP_MODE=open`: a new account
+joins `DEFAULT_ORG_SLUG` and can post straight away. Under `invite` a new account belongs to no
+organization, and the exam's `POST /api/posts` answers 403.
+
 ## Web app
 
 `apps/web` is the NEXA workspace in the browser (ADR-019). It follows the Frontend & Design System

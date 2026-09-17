@@ -45,6 +45,11 @@ Both contracts must work: the exam is graded against its own contract, while NEX
 4. Feed: the legacy route uses offset pagination, `/api/v1/feed` uses cursor pagination, and both go
    through the same query service.
 5. `posts.image_url` is kept as a nullable column; attachments arrive with the File module.
+6. **The exam's authorization rule wins on its routes** (added 2026-09-17). ADR-013 lets
+   moderators remove other people's content; the exam says only the author edits or deletes, and
+   its first registrant owns the default organization. Requests through `/api/*` therefore act
+   without `post.moderate`. Responses there also carry the brief's field names, `avatar` and
+   `user_id`, beside NEXA's. `apps/api/test/exam-srs.test.ts` holds the routes to the brief.
 
 ## Consequences
 

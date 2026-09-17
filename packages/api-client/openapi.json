@@ -96,6 +96,11 @@
             "type": "string",
             "nullable": true
           },
+          "avatar": {
+            "type": "string",
+            "nullable": true,
+            "description": "Same as avatar_url (exam contract)"
+          },
           "bio": {
             "type": "string",
             "nullable": true
@@ -122,6 +127,7 @@
           "username",
           "display_name",
           "avatar_url",
+          "avatar",
           "bio",
           "status",
           "created_at",
@@ -1553,6 +1559,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The author's id (exam contract)"
+          },
           "author": {
             "$ref": "#/components/schemas/UserReference"
           },
@@ -1612,6 +1623,7 @@
         "required": [
           "id",
           "organization_id",
+          "user_id",
           "author",
           "content",
           "image_url",
@@ -1817,6 +1829,11 @@
             "nullable": true,
             "format": "uuid"
           },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The author's id (exam contract)"
+          },
           "author": {
             "$ref": "#/components/schemas/UserReference"
           },
@@ -1839,6 +1856,7 @@
           "id",
           "post_id",
           "parent_id",
+          "user_id",
           "author",
           "content",
           "can_delete",

@@ -89,6 +89,7 @@ export const PostResponse = z
   .object({
     id: z.uuid(),
     organization_id: z.uuid(),
+    user_id: z.uuid().openapi({ description: "The author's id (exam contract)" }),
     author: UserReference.nullable(),
     content: z.string(),
     image_url: z.string().nullable(),
@@ -109,6 +110,7 @@ export const CommentResponse = z
     id: z.uuid(),
     post_id: z.uuid(),
     parent_id: z.uuid().nullable(),
+    user_id: z.uuid().openapi({ description: "The author's id (exam contract)" }),
     author: UserReference.nullable(),
     content: z.string(),
     can_delete: z.boolean(),

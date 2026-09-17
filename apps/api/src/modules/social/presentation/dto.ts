@@ -27,6 +27,8 @@ export function toPostResponse(
   return {
     id: post.id,
     organization_id: post.organizationId,
+    /** The exam's flat reference to the author (SRS §2), alongside the author object. */
+    user_id: post.authorId,
     author: toUserReference(authors.get(post.authorId)),
     content: post.content,
     image_url: post.imageUrl,
@@ -47,6 +49,7 @@ export function toCommentResponse(comment: Comment, authors: Authors, actor: Act
     id: comment.id,
     post_id: comment.postId,
     parent_id: comment.parentId,
+    user_id: comment.authorId,
     author: toUserReference(authors.get(comment.authorId)),
     content: comment.content,
     can_delete: canDeleteComment(actor, comment),

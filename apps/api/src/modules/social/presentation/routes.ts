@@ -55,10 +55,30 @@ export function createSocialRouters(deps: {
   // Spam protection for content creation (risk register 17).
   const writeLimiter = createRateLimiter({ windowMs: 60_000, limit: 30 });
 
-  const actorOf = (req: Request): Actor => ({
-    userId: requireAuthContext(req).userId,
-    organization: organizationContext(req),
-  });
+  // NEXA lets moderators remove other people's content (ADR-013). The exam has no moderators:
+  // only the author may edit or delete (SRS §4) - and the first person to register owns the
+  // default organization, so without this they could delete everyone's posts through /api.
+  // Requests through the exam router act without post.moderate, so the checks and the
+  // can_delete hints both follow the exam's rule there.
+  const examRequests = new WeakSet<Request>();
+  const examContract: RequestHandler = (req, _res, next) => {
+    examRequests.add(req);
+    next();
+  };
+  const actorOf = (req: Request): Actor => {
+    const organization = organizationContext(req);
+    return {
+      userId: requireAuthContext(req).userId,
+      organization: examRequests.has(req)
+        ? {
+            ...organization,
+            permissions: new Set(
+              [...organization.permissions].filter((key) => key !== 'post.moderate'),
+            ),
+          }
+        : organization,
+    };
+  };
   // v1 routes name the post `:id`, the exam routes `:postId`.
   const postIdOf = (req: Request) => {
     const params = req.params as { id?: string; postId?: string };
@@ -224,6 +244,7 @@ export function createSocialRouters(deps: {
 
   // Exam contract: the same use cases under the exam's paths, with page/limit pagination.
   const exam = Router();
+  exam.use(examContract);
   exam.get('/posts', ...guard, validate({ query: PageQuery }), feedPage);
   exam.post('/posts', writeLimiter, ...guard, validate({ body: CreatePostBody }), createPost);
   exam.get('/posts/:id', ...guard, validate({ params: IdParams }), getPost);
