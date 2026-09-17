@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import '../../../shared/http/openapi';
+import { PageQuery } from '../../../shared/http/pagination';
 import { UserReference } from '../../identity';
 import { SYSTEM_ROLE_KEYS } from '../domain/role-hierarchy';
 
@@ -37,6 +38,22 @@ export const MemberParams = OrganizationParams.extend({ userId: z.uuid() });
 export const InvitationParams = OrganizationParams.extend({ invitationId: z.uuid() });
 export const DepartmentParams = OrganizationParams.extend({ departmentId: z.uuid() });
 export const DepartmentMemberParams = DepartmentParams.extend({ userId: z.uuid() });
+
+// ─── Queries ───────────────────────────────────────────────────────────────
+
+export const MemberListQuery = PageQuery.extend({
+  q: z.string().trim().max(100).optional().openapi({
+    description: 'Name or username; accents and case are ignored, and words match as prefixes',
+    example: 'nguyen an',
+  }),
+  sort: z.enum(['joined', 'newest', 'name']).default('joined').openapi({
+    description: 'joined: longest-standing first; newest: most recent first; name: by name',
+  }),
+  department_id: z
+    .union([z.uuid(), z.literal('none')])
+    .optional()
+    .openapi({ description: 'Only this department, or "none" for people in no department' }),
+});
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
@@ -118,6 +135,7 @@ export const MemberResponse = z
     role: z.string(),
     status: MembershipStatus,
     joined_at: z.iso.datetime(),
+    departments: z.array(z.object({ id: z.uuid(), name: z.string() })),
   })
   .openapi('Member');
 
@@ -162,3 +180,4 @@ export type CreateInvitationInput = z.infer<typeof CreateInvitationBody>;
 export type AcceptInvitationInput = z.infer<typeof AcceptInvitationBody>;
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentBody>;
 export type UpdateDepartmentInput = z.infer<typeof UpdateDepartmentBody>;
+export type MemberListQueryInput = z.infer<typeof MemberListQuery>;

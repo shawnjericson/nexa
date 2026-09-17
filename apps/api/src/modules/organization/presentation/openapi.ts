@@ -7,7 +7,7 @@ import {
   registry,
   successResponse,
 } from '../../../shared/http/openapi';
-import { PagePagination, PageQuery } from '../../../shared/http/pagination';
+import { PagePagination } from '../../../shared/http/pagination';
 import { UserReference } from '../../identity';
 import {
   AcceptedInvitation,
@@ -30,6 +30,7 @@ import {
   UpdateDepartmentBody,
   UpdateMemberBody,
   UpdateOrganizationBody,
+  MemberListQuery,
 } from './schemas';
 
 type RouteConfig = Parameters<typeof registry.registerPath>[0];
@@ -118,10 +119,20 @@ route({
   path: `${org}/members`,
   tag: MEMBERS,
   summary: 'Members with their role and status',
+  description: 'Searched, filtered by department and sorted in the database, one page at a time.',
   params: OrganizationParams,
-  query: PageQuery,
+  query: MemberListQuery,
   response: paginatedResponse(MemberResponse, PagePagination),
   errors: [400, 401, 403],
+});
+route({
+  method: 'get',
+  path: `${org}/members/{userId}`,
+  tag: MEMBERS,
+  summary: 'One member, with their role and status',
+  params: MemberParams,
+  response: successResponse(MemberResponse),
+  errors: [400, 401, 403, 404],
 });
 route({
   method: 'patch',

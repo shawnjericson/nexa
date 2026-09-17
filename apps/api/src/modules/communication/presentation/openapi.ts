@@ -183,3 +183,12 @@ registerRoute({
   response: successResponse(z.record(z.string(), z.enum(['online', 'offline']))),
   errors: [400, 401, 403],
 });
+registerRoute({
+  method: 'get',
+  path: '/api/v1/presence/online-count',
+  tag: CHAT,
+  summary: 'How many other people in the organization are online',
+  headers,
+  response: successResponse(z.object({ online_count: z.number().int() })),
+  errors: [401, 403],
+});

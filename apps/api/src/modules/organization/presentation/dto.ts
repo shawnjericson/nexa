@@ -1,7 +1,13 @@
 import { toUserReference, type UserSummary } from '../../identity';
 import type { OrganizationDetails } from '../application/organization-management.service';
 import { invitationState, type Invitation } from '../domain/invitation';
-import type { Department, Member, Organization, OrganizationWithMembership } from '../domain/ports';
+import type {
+  Department,
+  DepartmentRef,
+  Member,
+  Organization,
+  OrganizationWithMembership,
+} from '../domain/ports';
 
 export function toOrganizationResponse(organization: Organization) {
   return {
@@ -32,12 +38,17 @@ export function toOrganizationDetailsResponse(details: OrganizationDetails) {
   };
 }
 
-export function toMemberResponse(member: Member, users: ReadonlyMap<string, UserSummary>) {
+export function toMemberResponse(
+  member: Member,
+  users: ReadonlyMap<string, UserSummary>,
+  departments: ReadonlyMap<string, DepartmentRef[]> = new Map(),
+) {
   return {
     user: toUserReference(users.get(member.userId)),
     role: member.roleKey,
     status: member.status,
     joined_at: member.joinedAt.toISOString(),
+    departments: departments.get(member.userId) ?? [],
   };
 }
 

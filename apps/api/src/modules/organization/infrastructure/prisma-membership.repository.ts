@@ -1,5 +1,11 @@
-import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
-import type { LockedMembers, Member, MemberChange, MembershipRepository } from '../domain/ports';
+import { Prisma, type PrismaClient } from '../../../generated/prisma/client';
+import type {
+  LockedMembers,
+  Member,
+  MemberChange,
+  MemberFilter,
+  MembershipRepository,
+} from '../domain/ports';
 
 const MEMBER_SELECT = {
   id: true,
@@ -69,22 +75,58 @@ class PrismaLockedMembers implements LockedMembers {
 export class PrismaMembershipRepository implements MembershipRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /**
+   * One page of members, filtered and sorted in the database: an organization of thousands is
+   * never sent whole for the browser to sift (which is what the directory used to do).
+   */
   async listMembers(
     organizationId: string,
     { skip, take }: { skip: number; take: number },
+    { query, departmentId, sort }: MemberFilter,
   ): Promise<{ items: Member[]; total: number }> {
-    const where = { organizationId } satisfies Prisma.OrganizationMemberWhereInput;
-    const [rows, total] = await Promise.all([
-      this.prisma.organizationMember.findMany({
-        where,
-        orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
-        skip,
-        take,
-        select: MEMBER_SELECT,
-      }),
-      this.prisma.organizationMember.count({ where }),
+    const inDepartment = (id: Prisma.Sql) =>
+      Prisma.sql`EXISTS (SELECT 1 FROM department_members dm
+                        WHERE dm.organization_id = m.organization_id AND dm.user_id = m.user_id
+                          AND dm.department_id = ${id})`;
+    const conditions = [
+      Prisma.sql`m.organization_id = ${organizationId}::uuid`,
+      ...(query
+        ? [Prisma.sql`u.search_vector @@ to_tsquery('simple', nexa_unaccent(${query.tsquery}))`]
+        : []),
+      ...(departmentId === 'none'
+        ? [
+            Prisma.sql`NOT EXISTS (SELECT 1 FROM department_members dm
+                                  WHERE dm.organization_id = m.organization_id
+                                    AND dm.user_id = m.user_id)`,
+          ]
+        : departmentId
+          ? [inDepartment(Prisma.sql`${departmentId}::uuid`)]
+          : []),
+    ];
+    const where = Prisma.join(conditions, ' AND ');
+    const order = {
+      joined: Prisma.sql`m.joined_at ASC, m.id ASC`,
+      newest: Prisma.sql`m.joined_at DESC, m.id DESC`,
+      name: Prisma.sql`nexa_unaccent(lower(u.display_name)), u.id`,
+    }[sort];
+
+    const [rows, counted] = await Promise.all([
+      this.prisma.$queryRaw<Member[]>`
+        SELECT m.id AS "membershipId", m.user_id AS "userId", r.key AS "roleKey",
+               m.status::text AS status, m.joined_at AS "joinedAt"
+          FROM organization_members m
+          JOIN roles r ON r.id = m.role_id
+          JOIN users u ON u.id = m.user_id
+         WHERE ${where}
+         ORDER BY ${order}
+         LIMIT ${take}::int OFFSET ${skip}::int`,
+      this.prisma.$queryRaw<{ total: number }[]>`
+        SELECT count(*)::int AS total
+          FROM organization_members m
+          JOIN users u ON u.id = m.user_id
+         WHERE ${where}`,
     ]);
-    return { items: rows.map(toMember), total };
+    return { items: rows, total: counted[0]?.total ?? 0 };
   }
 
   async findMember(organizationId: string, userId: string): Promise<Member | null> {

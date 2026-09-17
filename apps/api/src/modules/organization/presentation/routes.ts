@@ -1,6 +1,5 @@
 import { Router, type RequestHandler } from 'express';
 import type { z } from 'zod';
-import { PageQuery } from '../../../shared/http/pagination';
 import { createRateLimiter } from '../../../shared/http/rate-limit';
 import { validate } from '../../../shared/http/validate';
 import type { UserDirectory } from '../../identity';
@@ -23,6 +22,7 @@ import {
   UpdateDepartmentBody,
   UpdateMemberBody,
   UpdateOrganizationBody,
+  MemberListQuery,
 } from './schemas';
 
 /**
@@ -75,9 +75,10 @@ export function createOrganizationRouter(deps: {
   router.get(
     `${org}/members`,
     ...inOrganization(OrganizationParams),
-    validate({ query: PageQuery }),
+    validate({ query: MemberListQuery }),
     controller.listMembers,
   );
+  router.get(`${org}/members/:userId`, ...inOrganization(MemberParams), controller.getMember);
   router.patch(
     `${org}/members/:userId`,
     ...inOrganization(MemberParams),

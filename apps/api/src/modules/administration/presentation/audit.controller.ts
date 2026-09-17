@@ -5,6 +5,10 @@ import { organizationContext, type OrganizationActor } from '../../organization'
 import { encodeAuditCursor, type AuditService } from '../application/audit.service';
 import type { AuditLogQueryInput } from './schemas';
 
+// Subjects can be anything an event is about; only ids can be looked up as people.
+const isUuid = (id: string | null): id is string =>
+  id !== null && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 /** Handlers for the audit log: read the request, call the service, shape the response. */
 export function createAuditController(deps: { audit: AuditService; users: UserDirectory }) {
   const { audit, users } = deps;
@@ -17,8 +21,9 @@ export function createAuditController(deps: { audit: AuditService; users: UserDi
   const list: RequestHandler = async (req, res) => {
     const query = req.query as unknown as AuditLogQueryInput;
     const page = await audit.list(actorOf(req), query);
+    // Actors, and subjects that are people: the page names them without a directory of its own.
     const directory = await users.getSummaries(
-      page.items.flatMap((entry) => (entry.actorId ? [entry.actorId] : [])),
+      page.items.flatMap((entry) => [entry.actorId, entry.subjectId].filter(isUuid)),
     );
     const last = page.items.at(-1);
     paginated(
@@ -28,6 +33,7 @@ export function createAuditController(deps: { audit: AuditService; users: UserDi
         action: entry.action,
         actor: entry.actorId ? toUserReference(directory.get(entry.actorId)) : null,
         subject_id: entry.subjectId,
+        subject: entry.subjectId ? toUserReference(directory.get(entry.subjectId)) : null,
         metadata: entry.metadata,
         occurred_at: entry.occurredAt.toISOString(),
       })),

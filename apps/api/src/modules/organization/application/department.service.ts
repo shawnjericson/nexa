@@ -32,6 +32,11 @@ export class DepartmentService {
     return this.deps.departments.list(actor.organization.organizationId);
   }
 
+  /** Which departments these people are in, to show next to their names. */
+  departmentsOf(actor: OrganizationActor, userIds: readonly string[]) {
+    return this.deps.departments.departmentsOf(actor.organization.organizationId, userIds);
+  }
+
   async get(actor: OrganizationActor, id: string): Promise<Department> {
     const department = await this.deps.departments.findById(actor.organization.organizationId, id);
     if (!department) throw OrganizationErrors.departmentNotFound();

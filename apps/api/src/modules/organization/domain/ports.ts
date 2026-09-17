@@ -1,3 +1,4 @@
+import type { SearchQuery } from '../../../shared/search/search-query';
 import type { Invitation } from './invitation';
 import type { SystemRoleKey } from './permissions';
 
@@ -86,10 +87,18 @@ export interface LockedMembers {
   remove(membershipId: string): Promise<void>;
 }
 
+export interface MemberFilter {
+  /** Name or username prefixes, as a tsquery (see shared/search/search-query). */
+  query?: SearchQuery;
+  departmentId?: string | 'none';
+  sort: 'joined' | 'newest' | 'name';
+}
+
 export interface MembershipRepository {
   listMembers(
     organizationId: string,
     window: { skip: number; take: number },
+    filter: MemberFilter,
   ): Promise<{ items: Member[]; total: number }>;
   findMember(organizationId: string, userId: string): Promise<Member | null>;
   /**
@@ -139,6 +148,11 @@ export interface DepartmentChanges {
 }
 
 /** Scoped by organization. */
+export interface DepartmentRef {
+  id: string;
+  name: string;
+}
+
 export interface DepartmentRepository {
   list(organizationId: string): Promise<Department[]>;
   findById(organizationId: string, id: string): Promise<Department | null>;
@@ -157,6 +171,11 @@ export interface DepartmentRepository {
   ): Promise<Department | null>;
   delete(organizationId: string, id: string): Promise<boolean>;
   listMemberIds(organizationId: string, departmentId: string): Promise<string[]>;
+  /** The departments each of these people is in (people in none are left out of the map). */
+  departmentsOf(
+    organizationId: string,
+    userIds: readonly string[],
+  ): Promise<Map<string, DepartmentRef[]>>;
   /** Idempotent. */
   addMember(organizationId: string, departmentId: string, userId: string): Promise<void>;
   /** Idempotent. */

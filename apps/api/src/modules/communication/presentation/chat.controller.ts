@@ -220,6 +220,12 @@ export function createChatController(deps: {
     ok(res, Object.fromEntries(userIds.map((id) => [id, online.has(id) ? 'online' : 'offline'])));
   };
 
+  const getOnlineCount: RequestHandler = async (req, res) => {
+    const actor = actorOf(req);
+    const count = await presence.countOnline(actor.organization.organizationId, actor.userId);
+    ok(res, { online_count: count });
+  };
+
   return {
     listConversations,
     createConversation,
@@ -234,5 +240,6 @@ export function createChatController(deps: {
     deleteMessage,
     markRead,
     getPresence,
+    getOnlineCount,
   };
 }

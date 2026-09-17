@@ -114,6 +114,7 @@ export function createCommunicationRouter(deps: {
   );
   router.get('/channels', ...guard, controller.listChannels);
   router.get('/presence', ...guard, validate({ query: PresenceQuery }), controller.getPresence);
+  router.get('/presence/online-count', ...guard, controller.getOnlineCount);
 
   return router;
 }
