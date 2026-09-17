@@ -82,6 +82,7 @@ export const en: Messages = {
     avatarSaved: 'Profile picture updated.',
     avatarRemoved: 'Profile picture removed.',
     avatarTooLarge: 'A profile picture can be at most 5 MB.',
+    avatarGuest: 'Create an account of your own to upload a picture.',
     displayName: 'Full name',
     username: 'Username',
     bio: 'About',
@@ -107,6 +108,9 @@ export const en: Messages = {
     passwordMismatch: "The two new passwords don't match.",
     changePassword: 'Change password',
     passwordChanged: 'Password changed. Other devices have been signed out.',
+    guestEmail: 'A guest account for the demo',
+    guestPassword:
+      'A guest account has no password, so once you leave there is no way back in. To come back later, create an account of your own.',
     preferences: 'Preferences',
     organizations: 'Your organizations',
     organizationsDescription: "Switch to see that organization's feed, messages and people.",
@@ -115,7 +119,8 @@ export const en: Messages = {
     joinedOn: 'joined {date}',
   },
   demo: {
-    banner: "You're trying NEXA in a sample company. Its data is reset from time to time.",
+    banner:
+      "You're trying NEXA in a sample company, along with other visitors. Everyone can see what you post.",
     createAccount: 'Create your own account',
     leave: 'Leave the demo',
   },

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { uploadFile, UploadError } from '@/features/feed/upload';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
+import { isGuestEmail } from '@/lib/guest';
 import { useRemoveAvatar, useSetAvatar } from './queries';
 
 type Me = components['schemas']['Me'];
@@ -29,6 +30,8 @@ export function AvatarField({ me }: { me: Me }) {
   const setAvatar = useSetAvatar();
   const remove = useRemoveAvatar();
   const busy = progress !== null || setAvatar.isPending || remove.isPending;
+  // The API keeps uploads for real accounts (files cost storage), so a guest isn't offered one.
+  const guest = isGuestEmail(me.email);
 
   async function choose(file: File) {
     if (file.size > MAX_BYTES) {
@@ -59,48 +62,52 @@ export function AvatarField({ me }: { me: Me }) {
       <div className="min-w-0">
         <p className="text-[13px] font-medium text-fg">{t('settings.avatarLabel')}</p>
         <p className="mt-0.5 text-xs text-muted">
-          {progress !== null
-            ? t('upload.uploading', { percent: Math.round(progress * 100) })
-            : t('settings.avatarHelp')}
+          {guest
+            ? t('settings.avatarGuest')
+            : progress !== null
+              ? t('upload.uploading', { percent: Math.round(progress * 100) })
+              : t('settings.avatarHelp')}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <input
-            ref={input}
-            type="file"
-            accept={ACCEPT}
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (file) void choose(file);
-            }}
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={busy}
-            onClick={() => input.current?.click()}
-          >
-            <Upload aria-hidden />
-            {me.avatar_url ? t('settings.avatarChange') : t('settings.avatarUpload')}
-          </Button>
-          {me.avatar_url && (
+        {!guest && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              ref={input}
+              type="file"
+              accept={ACCEPT}
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) void choose(file);
+              }}
+            />
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              disabled={busy}
-              onClick={() =>
-                remove.mutate(undefined, {
-                  onSuccess: () => toast.success(t('settings.avatarRemoved')),
-                  onError: (error) => toast.error(describeError(error, i18n)),
-                })
-              }
+              loading={busy}
+              onClick={() => input.current?.click()}
             >
-              <Trash2 aria-hidden />
-              {t('settings.avatarRemove')}
+              <Upload aria-hidden />
+              {me.avatar_url ? t('settings.avatarChange') : t('settings.avatarUpload')}
             </Button>
-          )}
-        </div>
+            {me.avatar_url && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  remove.mutate(undefined, {
+                    onSuccess: () => toast.success(t('settings.avatarRemoved')),
+                    onError: (error) => toast.error(describeError(error, i18n)),
+                  })
+                }
+              >
+                <Trash2 aria-hidden />
+                {t('settings.avatarRemove')}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

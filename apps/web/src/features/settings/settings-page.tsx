@@ -14,6 +14,7 @@ import { useMe } from '@/features/session/use-me';
 import { LOCALE_NAMES, LOCALES, type Locale } from '@/i18n/config';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
+import { isGuestEmail } from '@/lib/guest';
 import { cn } from '@/lib/cn';
 import { AvatarField } from './avatar-field';
 import { useChangePassword, useUpdateMe, type UpdateMeInput } from './queries';
@@ -343,7 +344,9 @@ export function SettingsPage() {
           <Section id="settings-account" title={t('settings.account')}>
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
               <dt className="text-muted">{t('settings.email')}</dt>
-              <dd className="truncate">{me.data.email}</dd>
+              <dd className="truncate">
+                {isGuestEmail(me.data.email) ? t('settings.guestEmail') : me.data.email}
+              </dd>
               <dt className="text-muted">{t('settings.memberSince')}</dt>
               <dd>{formatDate(me.data.created_at)}</dd>
               <dt className="text-muted">{t('settings.lastLogin')}</dt>
@@ -353,11 +356,20 @@ export function SettingsPage() {
                   : t('settings.never')}
               </dd>
             </dl>
-            <div className="mt-6 border-t border-border pt-5">
-              <h3 className="text-sm font-semibold">{t('settings.password')}</h3>
-              <p className="mt-0.5 mb-4 text-sm text-muted">{t('settings.passwordDescription')}</p>
-              <PasswordForm email={me.data.email} />
-            </div>
+            {isGuestEmail(me.data.email) ? (
+              // A guest has a random password nobody knows, so there is nothing to change.
+              <p className="mt-6 border-t border-border pt-5 text-sm text-muted">
+                {t('settings.guestPassword')}
+              </p>
+            ) : (
+              <div className="mt-6 border-t border-border pt-5">
+                <h3 className="text-sm font-semibold">{t('settings.password')}</h3>
+                <p className="mt-0.5 mb-4 text-sm text-muted">
+                  {t('settings.passwordDescription')}
+                </p>
+                <PasswordForm email={me.data.email} />
+              </div>
+            )}
           </Section>
 
           <Section id="settings-preferences" title={t('settings.preferences')}>

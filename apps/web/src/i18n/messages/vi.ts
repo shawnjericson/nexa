@@ -84,6 +84,7 @@ export const vi = {
     avatarSaved: 'Đã cập nhật ảnh đại diện.',
     avatarRemoved: 'Đã gỡ ảnh đại diện.',
     avatarTooLarge: 'Ảnh đại diện tối đa 5 MB.',
+    avatarGuest: 'Tạo tài khoản riêng để tải ảnh đại diện lên.',
     displayName: 'Họ và tên',
     username: 'Tên người dùng',
     bio: 'Giới thiệu',
@@ -110,6 +111,9 @@ export const vi = {
     passwordMismatch: 'Hai mật khẩu mới chưa khớp nhau.',
     changePassword: 'Đổi mật khẩu',
     passwordChanged: 'Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.',
+    guestEmail: 'Tài khoản khách của bản xem thử',
+    guestPassword:
+      'Tài khoản khách không có mật khẩu, nên thoát ra là không vào lại được. Muốn quay lại sau, hãy tạo tài khoản riêng.',
     preferences: 'Tuỳ chọn',
     organizations: 'Tổ chức của bạn',
     organizationsDescription:
@@ -119,7 +123,8 @@ export const vi = {
     joinedOn: 'tham gia {date}',
   },
   demo: {
-    banner: 'Bạn đang xem thử NEXA trong một công ty mẫu. Dữ liệu được làm mới định kỳ.',
+    banner:
+      'Bạn đang xem thử NEXA trong một công ty mẫu, cùng những vị khách khác. Những gì bạn đăng, mọi người đều thấy.',
     createAccount: 'Tạo tài khoản của bạn',
     leave: 'Thoát bản xem thử',
   },
