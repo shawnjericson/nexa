@@ -28,8 +28,9 @@ for scenario in $SCENARIOS; do
   echo "==> $scenario ($(date -u +%T))"
   extra=()
   [ "$scenario" = directory ] && extra=(-e "MODE=${DIRECTORY_MODE:-all-pages}")
+  # Every request with its time and tags too, for charts of latency and virtual users over time.
   "$K6" run --quiet --no-color -e LOAD_OUT="$DIR/load/out" -e RESULTS="$OUT" "${extra[@]}" \
-    "$scenario.js" >"$OUT/$scenario.txt" 2>&1 &
+    --out "csv=$OUT/$scenario-samples.csv.gz" "$scenario.js" >"$OUT/$scenario.txt" 2>&1 &
   k6_pid=$!
   "$DIR/load/monitor.sh" "$k6_pid" >"$OUT/$scenario-host.csv"
   wait "$k6_pid" || true
