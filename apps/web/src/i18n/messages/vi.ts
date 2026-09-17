@@ -407,6 +407,7 @@ export const vi = {
     deactivated: 'Đã vô hiệu hoá',
     noResults: 'Không tìm thấy ai khớp với “{query}”.',
     memberCount: { one: '{count} người', other: '{count} người' },
+    loadMore: 'Xem thêm',
   },
   profile: {
     about: 'Giới thiệu',
@@ -574,6 +575,10 @@ export const vi = {
     generic: 'Bạn có một thông báo mới',
   },
   admin: {
+    pages: 'Các trang thành viên',
+    pageOf: 'Trang {page}/{pages}',
+    previousPage: 'Trang trước',
+    nextPage: 'Trang sau',
     title: 'Quản trị',
     description: 'Thành viên, lời mời, phòng ban và nhật ký hoạt động của {organization}.',
     tabMembers: 'Thành viên',

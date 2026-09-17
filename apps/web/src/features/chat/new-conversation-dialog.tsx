@@ -2,22 +2,23 @@
 
 import { Check, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Input, TextField } from '@/components/ui/input';
-import { useMembers } from '@/features/people/queries';
+import { useMemberPage } from '@/features/people/queries';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
 import { cn } from '@/lib/cn';
-import { fold } from '@/lib/format';
-import type { UserRef } from '@/lib/types';
+import { useDebounced } from '@/lib/use-debounced';
 import { useCreateGroup, useOpenDirect } from './queries';
 
 type Mode = 'direct' | 'group';
+
+const PICKER_SIZE = 30;
 
 /** Start a direct conversation with someone, or a group with several people. */
 export function NewConversationDialog({
@@ -31,33 +32,24 @@ export function NewConversationDialog({
   const { t, tn } = i18n;
   const router = useRouter();
   const { data: me } = useMe();
-  const members = useMembers();
   const openDirect = useOpenDirect();
   const createGroup = useCreateGroup();
   const [mode, setMode] = useState<Mode>('direct');
   const [query, setQuery] = useState('');
   const [groupName, setGroupName] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const search = useDebounced(query.trim(), 250);
+  // The first matches by name; typing narrows them down on the server.
+  const members = useMemberPage({ q: search, sort: 'name', limit: PICKER_SIZE }, { enabled: open });
 
-  const people = useMemo(() => {
-    const needle = fold(query.trim());
-    return (members.data ?? [])
-      .flatMap((member) =>
-        member.user &&
-        member.user.id !== me?.id &&
-        !member.user.deactivated &&
-        member.status === 'ACTIVE'
-          ? [member.user]
-          : [],
-      )
-      .filter(
-        (user: UserRef) =>
-          !needle ||
-          fold(user.display_name).includes(needle) ||
-          fold(user.username).includes(needle),
-      )
-      .sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }, [members.data, me?.id, query]);
+  const people = (members.data?.data ?? []).flatMap((member) =>
+    member.user &&
+    member.user.id !== me?.id &&
+    !member.user.deactivated &&
+    member.status === 'ACTIVE'
+      ? [member.user]
+      : [],
+  );
 
   function close() {
     onOpenChange(false);

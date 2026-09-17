@@ -2,7 +2,7 @@
 
 import { MessageSquare, Search, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,12 @@ import { useOrganization } from '@/features/organization/organization-provider';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
-import { fold } from '@/lib/format';
-import type { Department, Member, UserRef } from '@/lib/types';
-import { useDepartments, useDepartmentsByUser, useMembers, usePresence } from './queries';
+import type { Member, UserRef } from '@/lib/types';
+import { useDebounced } from '@/lib/use-debounced';
+import { useDepartments, useMemberList, useMemberPage, usePresence } from './queries';
 
-const NO_DEPARTMENT = '__none__';
+/** The API's filter for people in no department. */
+const NO_DEPARTMENT = 'none';
 
 type Person = Member & { user: UserRef };
 
@@ -49,21 +50,11 @@ function Chip({
   );
 }
 
-function PersonCard({
-  member,
-  departments,
-  online,
-  isMe,
-}: {
-  member: Person;
-  departments: Department[];
-  online: boolean;
-  isMe: boolean;
-}) {
+function PersonCard({ member, online, isMe }: { member: Person; online: boolean; isMe: boolean }) {
   const { t, tryT } = useI18n();
   const { user } = member;
   const context = [
-    departments.map((department) => department.name).join(', '),
+    member.departments.map((department) => department.name).join(', '),
     tryT(`organization.roles.${member.role}`),
   ]
     .filter(Boolean)
@@ -117,51 +108,63 @@ function PersonCard({
   );
 }
 
-/** Everyone in the organization: filter by department, search without accents (spec §6). */
+/**
+ * Everyone in the organization: search without accents, filter by department (spec §6). The API
+ * does the searching, filtering and sorting and sends 50 people at a time; the next 50 load when
+ * the reader reaches the end, so a company of thousands opens as quickly as a team of ten.
+ */
 export function PeopleDirectory() {
-  const { t, tn, locale } = useI18n();
+  const { t, tn } = useI18n();
   const { organization } = useOrganization();
   const { data: me } = useMe();
-  const members = useMembers();
-  const departments = useDepartments();
-  const { byUser } = useDepartmentsByUser(departments.data);
   const [query, setQuery] = useState('');
   const [department, setDepartment] = useState('');
+  const search = useDebounced(query.trim(), 250);
+  const members = useMemberList({
+    q: search,
+    departmentId: department || undefined,
+    sort: 'name',
+  });
+  const everyone = useMemberPage({ limit: 1 });
+  const unplaced = useMemberPage({ departmentId: NO_DEPARTMENT, limit: 1 });
+  const departments = useDepartments();
+  const more = useRef<HTMLDivElement>(null);
 
   const people = useMemo(
-    () => (members.data ?? []).filter((member): member is Person => member.user !== null),
+    () =>
+      (members.data?.pages ?? [])
+        .flatMap((page) => page.data)
+        .filter((member): member is Person => member.user !== null),
     [members.data],
   );
   const presence = usePresence(people.map((member) => member.user.id));
+  const total = everyone.data?.pagination.total;
+  const withoutDepartment = unplaced.data?.pagination.total ?? 0;
 
-  const inDepartment = (member: Person) =>
-    department === ''
-      ? true
-      : department === NO_DEPARTMENT
-        ? !byUser.get(member.user.id)?.length
-        : Boolean(byUser.get(member.user.id)?.some((item) => item.id === department));
-
-  const needle = fold(query.trim());
-  const visible = people
-    .filter(
-      (member) =>
-        inDepartment(member) &&
-        (!needle ||
-          fold(member.user.display_name).includes(needle) ||
-          fold(member.user.username).includes(needle)),
-    )
-    .sort((a, b) => a.user.display_name.localeCompare(b.user.display_name, locale));
-
-  const withoutDepartment = people.filter((member) => !byUser.get(member.user.id)?.length).length;
-  const loading = members.isPending || departments.isPending;
+  // The next page when the end of the list scrolls into view.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = members;
+  useEffect(() => {
+    const element = more.current;
+    if (!element || !hasNextPage || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8">
       <PageHeader
         title={t('people.title')}
         description={
-          members.data
-            ? tn('people.description', people.length, { organization: organization.name })
+          total !== undefined
+            ? tn('people.description', total, { organization: organization.name })
             : undefined
         }
       />
@@ -187,7 +190,7 @@ export function PeopleDirectory() {
           aria-label={t('people.department')}
           className="mt-3 flex gap-1.5 overflow-x-auto pb-1"
         >
-          <Chip active={department === ''} count={people.length} onClick={() => setDepartment('')}>
+          <Chip active={department === ''} count={total} onClick={() => setDepartment('')}>
             {t('people.allDepartments')}
           </Chip>
           {departments.data?.map((item) => (
@@ -212,40 +215,59 @@ export function PeopleDirectory() {
         </div>
       )}
 
-      <div className="mt-5">
-        {loading ? (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }, (_, index) => (
-              <li key={index} className="rounded-xl border border-border p-4" aria-hidden>
-                <div className="flex items-center gap-3">
-                  <Skeleton className="size-11 rounded-full" />
-                  <div className="flex flex-1 flex-col gap-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-                <Skeleton className="mt-4 h-3 w-24" />
-              </li>
-            ))}
-          </ul>
+      <div className="mt-5" aria-busy={members.isFetching}>
+        {members.isPending ? (
+          <PeopleSkeleton />
         ) : members.isError ? (
           <ErrorState error={members.error} onRetry={() => members.refetch()} />
-        ) : visible.length === 0 ? (
-          <EmptyState icon={Users} title={t('people.noResults', { query: query.trim() })} />
+        ) : people.length === 0 ? (
+          <EmptyState icon={Users} title={t('people.noResults', { query: search })} />
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {visible.map((member) => (
-              <PersonCard
-                key={member.user.id}
-                member={member}
-                departments={byUser.get(member.user.id) ?? []}
-                online={presence.data?.[member.user.id] === 'online'}
-                isMe={member.user.id === me?.id}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {people.map((member) => (
+                <PersonCard
+                  key={member.user.id}
+                  member={member}
+                  online={presence.data?.[member.user.id] === 'online'}
+                  isMe={member.user.id === me?.id}
+                />
+              ))}
+            </ul>
+            <div ref={more} className="mt-4 flex justify-center">
+              {hasNextPage && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={isFetchingNextPage}
+                  onClick={() => void fetchNextPage()}
+                >
+                  {t('people.loadMore')}
+                </Button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function PeopleSkeleton() {
+  return (
+    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }, (_, index) => (
+        <li key={index} className="rounded-xl border border-border p-4" aria-hidden>
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-11 rounded-full" />
+            <div className="flex flex-1 flex-col gap-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <Skeleton className="mt-4 h-3 w-24" />
+        </li>
+      ))}
+    </ul>
   );
 }

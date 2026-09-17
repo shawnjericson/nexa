@@ -23,10 +23,10 @@ import { Input, Textarea, TextField } from '@/components/ui/input';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { EmptyState, ErrorState } from '@/components/ui/states';
 import { useOrganization } from '@/features/organization/organization-provider';
-import { useDepartments, useMembers } from '@/features/people/queries';
+import { useDepartments, useMemberPage } from '@/features/people/queries';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
-import { fold } from '@/lib/format';
+import { useDebounced } from '@/lib/use-debounced';
 import { can } from '@/lib/permissions';
 import type { Department, UserRef } from '@/lib/types';
 import { RowsSkeleton } from './members-panel';
@@ -148,23 +148,24 @@ function DepartmentMembersDialog({
   const i18n = useI18n();
   const { t } = i18n;
   const members = useDepartmentMembers(department.id);
-  const everyone = useMembers();
   const add = useAddDepartmentMember();
   const remove = useRemoveDepartmentMember();
   const [query, setQuery] = useState('');
+  const search = useDebounced(query.trim(), 250);
+  const found = useMemberPage(
+    { q: search, sort: 'name', limit: MAX_CANDIDATES * 2 },
+    { enabled: manage && search !== '' },
+  );
 
   const current = (members.data ?? []).filter(isUser);
   const inDepartment = new Set(current.map((user) => user.id));
-  const needle = fold(query.trim());
-  const candidates = needle
-    ? (everyone.data ?? [])
+  const candidates = search
+    ? (found.data?.data ?? [])
         .flatMap((member) =>
           member.user &&
           member.status === 'ACTIVE' &&
           !member.user.deactivated &&
-          !inDepartment.has(member.user.id) &&
-          (fold(member.user.display_name).includes(needle) ||
-            fold(member.user.username).includes(needle))
+          !inDepartment.has(member.user.id)
             ? [member.user]
             : [],
         )

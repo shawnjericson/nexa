@@ -1,11 +1,20 @@
 'use client';
 
-import { MoreHorizontal, Search, UserCheck, UserMinus, UserX } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Search,
+  UserCheck,
+  UserMinus,
+  UserX,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import {
   Menu,
@@ -19,18 +28,16 @@ import {
 } from '@/components/ui/menu';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/states';
 import { useOrganization } from '@/features/organization/organization-provider';
-import { useMembers } from '@/features/people/queries';
+import { useMemberPage } from '@/features/people/queries';
 import { useMe } from '@/features/session/use-me';
 import { useI18n } from '@/i18n/provider';
 import { describeError } from '@/lib/api/errors';
-import { fold } from '@/lib/format';
 import { can, canAssignRole, canManageMember, isRole, ROLES, type Role } from '@/lib/permissions';
 import type { Member, UserRef } from '@/lib/types';
+import { useDebounced } from '@/lib/use-debounced';
 import { useRemoveMember, useUpdateMember } from './queries';
 
 type Person = Member & { user: UserRef };
-
-const ORDER: Record<string, number> = { OWNER: 0, ADMIN: 1, MANAGER: 2, MEMBER: 3 };
 
 export function RowsSkeleton({ rows = 6 }: { rows?: number }) {
   return (
@@ -49,18 +56,21 @@ export function RowsSkeleton({ rows = 6 }: { rows?: number }) {
 }
 
 /**
- * Everyone in the organization with their role and status. Actions follow the API's rules:
- * nobody acts on a peer or a superior, or hands out more power than they hold.
+ * Everyone in the organization with their role and status, a page at a time and searched by the
+ * API. Actions follow the API's rules: nobody acts on a peer or a superior, or hands out more
+ * power than they hold.
  */
 export function MembersPanel() {
   const i18n = useI18n();
-  const { t, tn, tryT, formatDate, locale } = i18n;
+  const { t, tn, tryT, formatDate } = i18n;
   const { organization } = useOrganization();
   const { data: me } = useMe();
-  const members = useMembers();
   const update = useUpdateMember();
   const remove = useRemoveMember();
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const search = useDebounced(query.trim(), 250);
+  const members = useMemberPage({ q: search, sort: 'name', page });
   const [removing, setRemoving] = useState<Person | null>(null);
 
   const actor = organization.role;
@@ -101,20 +111,8 @@ export function MembersPanel() {
   if (members.isError)
     return <ErrorState error={members.error} onRetry={() => members.refetch()} />;
 
-  const needle = fold(query.trim());
-  const people = members.data
-    .filter((member): member is Person => member.user !== null)
-    .filter(
-      (member) =>
-        !needle ||
-        fold(member.user.display_name).includes(needle) ||
-        fold(member.user.username).includes(needle),
-    )
-    .sort(
-      (a, b) =>
-        (ORDER[a.role] ?? 9) - (ORDER[b.role] ?? 9) ||
-        a.user.display_name.localeCompare(b.user.display_name, locale),
-    );
+  const people = members.data.data.filter((member): member is Person => member.user !== null);
+  const { total, total_pages: pages } = members.data.pagination;
 
   return (
     <div className="flex flex-col gap-4">
@@ -127,17 +125,20 @@ export function MembersPanel() {
           <Input
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
             placeholder={t('admin.searchMembers')}
             aria-label={t('admin.searchMembers')}
             className="pl-9"
           />
         </div>
-        <p className="text-xs text-muted">{tn('people.memberCount', members.data.length)}</p>
+        <p className="text-xs text-muted">{tn('people.memberCount', total)}</p>
       </div>
 
       {people.length === 0 ? (
-        <EmptyState icon={Search} title={t('people.noResults', { query: query.trim() })} />
+        <EmptyState icon={Search} title={t('people.noResults', { query: search })} />
       ) : (
         <ul className="-mx-3 flex flex-col divide-y divide-border">
           {people.map((member) => {
@@ -228,6 +229,29 @@ export function MembersPanel() {
             );
           })}
         </ul>
+      )}
+
+      {pages > 1 && (
+        <nav
+          aria-label={t('admin.pages')}
+          className="flex items-center justify-end gap-2 text-xs text-muted"
+        >
+          {t('admin.pageOf', { page, pages })}
+          <IconButton
+            label={t('admin.previousPage')}
+            icon={ChevronLeft}
+            size="icon-sm"
+            disabled={page <= 1 || members.isFetching}
+            onClick={() => setPage((current) => current - 1)}
+          />
+          <IconButton
+            label={t('admin.nextPage')}
+            icon={ChevronRight}
+            size="icon-sm"
+            disabled={page >= pages || members.isFetching}
+            onClick={() => setPage((current) => current + 1)}
+          />
+        </nav>
       )}
 
       <ConfirmDialog
