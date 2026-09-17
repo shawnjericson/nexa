@@ -62,7 +62,7 @@ Documents: architecture specification, risk register and design system in
 | Cache / presence | Redis 8 (TLS, ACL user limited to `nexa:*`)                                 |
 | Logs / events    | MongoDB 8 (audit + event log, see ADR-009)                                  |
 | Auth             | JWT access tokens (jose) + rotating refresh                                 |
-| Passwords        | bcrypt                                                                      |
+| Passwords        | bcrypt (native, on the libuv thread pool)                                   |
 | Validation       | Zod 4                                                                       |
 | API docs         | OpenAPI 3 + Swagger UI                                                      |
 | Logging          | pino (JSON in production, pretty in development)                            |
@@ -193,7 +193,7 @@ the exam does: through `/api/*`, with exactly the payloads the brief lists and n
 | §3.3 `PUT`/`DELETE /api/posts/:id`        | Author only - on these routes not even a moderator (see below)                                                                      |
 | §3.4 `/api/comments/post/:postId`, `/:id` | Delete is author only                                                                                                               |
 | §4 Layered architecture                   | Each module: routes (`*routes.ts`) → controllers (`*.controller.ts`) → services (`application/`) → repositories (`infrastructure/`) |
-| §4 bcrypt                                 | `bcryptjs`, 12 rounds                                                                                                               |
+| §4 bcrypt                                 | Native bcrypt (`@node-rs/bcrypt`), 12 rounds, hashed off the event loop                                                             |
 | §4 JWT middleware                         | `requireAuth` on every exam route except auth                                                                                       |
 | §4 Author-only edits and deletes          | Policies in each module's `domain/policies.ts`                                                                                      |
 | §4 Validation (email, password ≥ 6)       | Zod schemas, applied by the `validate` middleware                                                                                   |
