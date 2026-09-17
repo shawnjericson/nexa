@@ -74,7 +74,8 @@ async function coalesce(
   drafts: NotificationDraft[],
 ): Promise<NotificationRow[]> {
   const keys = drafts.map((draft) => `${draft.recipientId}|${draft.groupKey}`);
-  await tx.$queryRaw`
+  // executeRaw: the locks return void, which a query result could not carry.
+  await tx.$executeRaw`
     SELECT pg_advisory_xact_lock(h)
     FROM (SELECT hashtext(k) AS h FROM unnest(${keys}::text[]) AS k ORDER BY h) AS locks`;
 
