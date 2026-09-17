@@ -6,7 +6,8 @@ import { bearer } from './helpers/auth';
 import { prisma, resetDatabase } from './helpers/db';
 
 /**
- * The exam's own requirements (docs/specs/NodeJS.docx), checked the way the exam checks them:
+ * The exam's own requirements (the course's Social Media API brief, which is course material and
+ * not in this repository), checked the way the exam checks them:
  * through the /api/* routes (ADR-010), with exactly the payloads the SRS lists and nothing NEXA
  * adds - no organization header, no display name. Each describe block is one section of the SRS.
  * The rest of the suite tests NEXA; this file answers "does it pass the exam?".

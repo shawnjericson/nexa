@@ -27,6 +27,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# The exam brief is course material: kept locally, never published
+docs/specs/NodeJS.docx
+
 # Word lock files
 ~$*
 

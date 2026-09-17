@@ -5,7 +5,7 @@
 
 ## Context
 
-NEXA v1 grows out of a Node.js exam (`docs/specs/NodeJS.docx`) whose API contract differs from the
+NEXA v1 grows out of a Node.js exam (the course's Social Media API brief) whose API contract differs from the
 NEXA spec:
 
 | Exam                                                      | NEXA v1 spec                                           |

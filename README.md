@@ -4,7 +4,7 @@ Private social + communication platform for organizations: company feed, chat, o
 identity, notifications. It started as a Node.js exam (Social Media API) and grows into the NEXA v1
 platform.
 
-- Architecture spec, risk register and exam brief: [`docs/specs/`](docs/specs)
+- Architecture spec, risk register and design system: [`docs/specs/`](docs/specs)
 - Architecture decisions: [`docs/adr/`](docs/adr/README.md)
 
 ## Stack
@@ -81,7 +81,7 @@ cp apps/api/.env.example apps/api/.env   # fill in the real credentials and JWT 
 
 # Pin the database server certificate (self-signed) for TLS
 mkdir -p apps/api/certs
-echo | openssl s_client -starttls postgres -connect 139.180.139.17:5432 2>/dev/null \
+echo | openssl s_client -starttls postgres -connect DB_HOST:5432 2>/dev/null \
   | openssl x509 -outform PEM > apps/api/certs/postgres-server.pem
 
 pnpm --filter @nexa/api db:generate      # generate the Prisma client
@@ -108,7 +108,8 @@ openssl x509 -in apps/api/certs/postgres-server.pem -noout -fingerprint -sha256
 
 ## Exam requirements
 
-The exam brief is [`docs/specs/NodeJS.docx`](docs/specs) (a Social Media API). Its routes live under
+The exam brief is the course's Social Media API specification (course material, so it is not in
+this repository). Its routes live under
 `/api/*` next to NEXA's `/api/v1/*`, over the same services (ADR-010).
 [`apps/api/test/exam-srs.test.ts`](apps/api/test/exam-srs.test.ts) checks every requirement the way
 the exam does: through `/api/*`, with exactly the payloads the brief lists and no NEXA extras.
