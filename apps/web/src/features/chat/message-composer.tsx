@@ -2,6 +2,7 @@
 
 import { FileText, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { toast } from 'sonner';
 import { IconButton } from '@/components/ui/icon-button';
 import { Textarea } from '@/components/ui/input';
@@ -88,14 +89,16 @@ export function MessageComposer({
     const field = textarea.current;
     const at = field ? field.selectionStart : content.length;
     const to = field ? field.selectionEnd : content.length;
-    setContent(content.slice(0, at) + emoji + content.slice(to));
+    // Commit the new text right away, so the caret can go after the emoji in this same click. A
+    // frame callback would be tidier, but frames don't run in a tab that isn't being drawn - and
+    // then the caret never comes back and whatever the person types next goes nowhere.
+    flushSync(() => setContent(content.slice(0, at) + emoji + content.slice(to)));
     signalTyping();
-    // Put the caret after what was just inserted, once React has rendered the new value.
-    requestAnimationFrame(() => {
+    if (field) {
       const caret = at + emoji.length;
-      field?.focus();
-      field?.setSelectionRange(caret, caret);
-    });
+      field.focus();
+      field.setSelectionRange(caret, caret);
+    }
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

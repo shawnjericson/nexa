@@ -64,8 +64,8 @@ export function EmojiPicker({ onPick }: { onPick(emoji: string): void }) {
 
   function pick(emoji: string) {
     setRecent(rememberRecent(emoji));
+    // The composer takes the caret back itself, synchronously; closing only tidies the panel away.
     onPick(emoji);
-    // Close and hand the caret straight back to the composer, so typing continues uninterrupted.
     setOpen(false);
   }
 
